@@ -14,9 +14,8 @@ const MIX = [0, 30, 52, 76, 100];
 
 export default function Home() {
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-16 sm:px-8 sm:py-24">
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Ram</p>
-      <h1 className="mt-3 max-w-xl text-4xl font-semibold tracking-tight sm:text-5xl">
+    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pt-8 pb-16 sm:px-8 sm:pt-12 sm:pb-24">
+      <h1 className="max-w-xl text-4xl font-semibold tracking-tight sm:text-5xl">
         A year of small things, one square at a time.
       </h1>
       <p className="mt-4 max-w-lg text-muted-foreground">

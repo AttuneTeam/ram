@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Google_Sans_Flex, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
+import { SiteHeader } from "@/components/SiteHeader";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -64,6 +65,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
           <TooltipProvider>
+            <SiteHeader />
             {children}
             <Toaster position="bottom-center" />
           </TooltipProvider>
