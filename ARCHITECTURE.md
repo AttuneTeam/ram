@@ -49,7 +49,9 @@ app/
 
 components/
   WorkspaceApp.tsx          Client state owner: filters, dialogs, optimistic updates
-  ActivityGrid.tsx          The heatmap: horizontal scroll, single floating tooltip, arrow-key nav
+  ActivityGrid.tsx          Horizontal view: weeks as columns, scrolls sideways, opens on today
+  VerticalGrid.tsx          Vertical view: weeks as rows, newest on top, week notes beside each row
+  grid/shared.tsx           What both views share: day button, delegated tooltip, cell sizes
   DayDialog.tsx             Log / edit / delete entries for a day
   CategoryDialog.tsx        Create / edit / delete a category (name, colour, unit)
   SettingsDialog.tsx        Name, dividers, week start, categories, PIN
@@ -72,6 +74,7 @@ db/migrations/              Plain SQL, applied in order by scripts/migrate.mjs
   palette.ts                Validated category swatches
   people.ts                 initials()
   me.ts                     Per-device "who am I" for the Logged-by picker
+  orientation.ts            Per-device horizontal/vertical preference (phones default to vertical)
   useToday.ts               Viewer-local "today" (client only)
 ```
 
@@ -92,6 +95,23 @@ db/migrations/              Plain SQL, applied in order by scripts/migrate.mjs
   person's entries. The grid keeps everyone's date range so it doesn't jump.
 - Colour is `color-mix()` of the category colour into `--cell-empty`, so it works in both themes.
   Several bands use a hard-stop `linear-gradient`.
+
+## Two orientations
+
+A personal, per-device preference (`lib/orientation.ts`), never stored on the workspace: one
+viewer's choice shouldn't flip it for everyone. Until chosen, phones get vertical and wider
+screens horizontal. Both views draw the same `buildGrid()` output.
+
+- **Horizontal** is the original layout: header on top, weeks as columns, scrolled to today.
+- **Vertical** uses `newestFirst()`: weeks as rows, newest on top, so no initial scroll. On
+  desktop it has a sidebar (title, people, actions, filters, legend) and a right pane that
+  scrolls on its own. On phones the sidebar stacks above. Month labels come from
+  `verticalMonthLabels()`, which puts each label on the month's *newest* week, the first row
+  you meet reading down. Each row carries the week's notes, since the 7-wide grid leaves room.
+- The pane has no vertical padding of its own. Sticky elements pin to the scroll container's
+  padding edge, so padding there leaves a gap above the sticky weekday header.
+- Orientation is unknown until hydration, so the page renders empty for a moment rather than
+  showing one layout and jumping to the other.
 
 ## Why the grid renders client-only
 

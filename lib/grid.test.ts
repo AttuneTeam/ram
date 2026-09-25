@@ -1,5 +1,5 @@
 import { addDays, isValidDay, startOfWeek, weekday } from "./dates";
-import { buildGrid, gridStart, MIN_WEEKS } from "./grid";
+import { buildGrid, gridStart, MIN_WEEKS, newestFirst, verticalMonthLabels } from "./grid";
 
 describe("dates", () => {
   it("finds the start of the week for either convention", () => {
@@ -90,5 +90,45 @@ describe("buildGrid", () => {
     expect(segments.map((s) => s.key)).toEqual(["2025", "2026"]);
     const all = segments.flatMap((s) => s.columns.flatMap((c) => c.days)).filter(Boolean);
     expect(all.every((d, i, arr) => i === 0 || d! > arr[i - 1]!)).toBe(true);
+  });
+});
+
+describe("newestFirst", () => {
+  it("puts the current week first and keeps days in week order", () => {
+    const segments = buildGrid({ from: "2026-08-01", to: "2026-09-25", weekStart: 1, divider: "none" });
+    const [segment] = newestFirst(segments);
+    expect(segment.columns[0].days).toEqual([
+      "2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", null, null,
+    ]);
+    const firsts = segment.columns.map((c) => c.days.find(Boolean)!);
+    expect(firsts).toEqual([...firsts].sort().reverse());
+  });
+
+  it("orders month segments newest first", () => {
+    const segments = buildGrid({ from: "2026-07-15", to: "2026-09-25", weekStart: 1, divider: "month" });
+    expect(newestFirst(segments).map((s) => s.label)).toEqual(["Sep 2026", "Aug 2026", "Jul 2026"]);
+  });
+
+  it("doesn't mutate the input", () => {
+    const segments = buildGrid({ from: "2026-08-01", to: "2026-09-25", weekStart: 1, divider: "month" });
+    const before = JSON.stringify(segments);
+    newestFirst(segments);
+    expect(JSON.stringify(segments)).toBe(before);
+  });
+});
+
+describe("verticalMonthLabels", () => {
+  it("labels each month on its newest week, reading top-down", () => {
+    // Weeks (Mon start) from 27 Jul to the current week of 21–25 Sep, newest first.
+    const [segment] = newestFirst(buildGrid({ from: "2026-08-01", to: "2026-09-25", weekStart: 1, divider: "none" }));
+    const labels = verticalMonthLabels(segment.columns);
+    const firstDays = segment.columns.map((c) => c.days.find(Boolean));
+    expect(firstDays).toEqual([
+      "2026-09-21", "2026-09-14", "2026-09-07", "2026-08-31",
+      "2026-08-24", "2026-08-17", "2026-08-10", "2026-08-03", "2026-07-27",
+    ]);
+    // Sep on the top row. The week of 31 Aug ends in Sep, so Aug starts one row
+    // lower, on 24–30 Aug. The bottom week ends 2 Aug, so it's still Aug.
+    expect(labels).toEqual(["Sep", undefined, undefined, undefined, "Aug", undefined, undefined, undefined, undefined]);
   });
 });
