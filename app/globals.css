@@ -42,6 +42,8 @@
   --color-card: var(--card);
   --color-tertiary: var(--tertiary);
   --color-surface-dim: var(--surface-dim);
+  --color-hover: var(--hover);
+  --color-well: var(--well);
   /* Radius scale per design system */
   --radius-sm: calc(var(--radius) * 0.3);
   --radius-md: calc(var(--radius) * 0.5);
@@ -115,6 +117,12 @@
   --sidebar-border: transparent;
   --sidebar-ring: #416c63;
 
+  /* ── Interaction layers ───────────────────────────────────────────── */
+  /* Translucent, so they read the same on the page, a card or a dialog. */
+  --hover: rgb(56 56 49 / 0.06);
+  /* Inset areas: list rows, stat tiles. Same look as the old accent/60 on white. */
+  --well: rgb(234 232 222 / 0.6);
+
   /* ── Activity grid ────────────────────────────────────────────────── */
   --cell-empty: #e4e1d8;
   --cell-future: transparent;
@@ -156,7 +164,8 @@
 
   /* ── Ghost border ────────────────────────────────────────────────── */
   --border: #4a5054;
-  --input: #3b4145;
+  /* Field fill: must clear the popover (#373b3f) and card (#2d3033). */
+  --input: #43484d;
   --ring: #6fb49f;
 
   /* ── Charts ───────────────────────────────────────────────────────── */
@@ -175,6 +184,10 @@
   --sidebar-accent-foreground: #e7e8e8;
   --sidebar-border: transparent;
   --sidebar-ring: #6fb49f;
+
+  /* ── Interaction layers ───────────────────────────────────────────── */
+  --hover: rgb(231 232 232 / 0.08);
+  --well: rgb(231 232 232 / 0.06);
 
   /* ── Activity grid ────────────────────────────────────────────────── */
   --cell-empty: #34383c;

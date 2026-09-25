@@ -41,7 +41,7 @@ export function ShareDialog({ open, workspace, onClose, onWorkspaceChange }: Pro
           <DialogDescription>Two links: one to log with, one to look.</DialogDescription>
         </DialogHeader>
 
-        <section className="space-y-2 rounded-xl bg-accent/60 p-4">
+        <section className="space-y-2 rounded-xl bg-well p-4">
           <h3 className="flex items-center gap-1.5 text-sm font-medium">
             <PencilLineIcon className="size-4" /> Edit link
           </h3>
@@ -52,7 +52,7 @@ export function ShareDialog({ open, workspace, onClose, onWorkspaceChange }: Pro
           <LinkRow url={editUrl} />
         </section>
 
-        <section className="space-y-2 rounded-xl bg-accent/60 p-4">
+        <section className="space-y-2 rounded-xl bg-well p-4">
           <h3 className="flex items-center gap-1.5 text-sm font-medium">
             <EyeIcon className="size-4" /> View-only link
           </h3>

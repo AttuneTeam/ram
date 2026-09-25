@@ -121,7 +121,7 @@ function CategoryForm({
           ))}
           <label
             className={cn(
-              "relative grid size-7 cursor-pointer place-items-center rounded-md bg-accent text-xs text-muted-foreground",
+              "relative grid size-7 cursor-pointer place-items-center rounded-md bg-well text-xs text-muted-foreground",
               !SWATCHES.includes(color) && "ring-2 ring-ring",
             )}
             title="Custom colour"

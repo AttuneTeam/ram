@@ -30,7 +30,7 @@ export function RecentWorkspaces() {
           <li key={w.slug}>
             <Link
               href={`/w/${w.slug}`}
-              className="group flex items-center justify-between rounded-xl px-4 py-3 transition-colors hover:bg-accent"
+              className="group flex items-center justify-between rounded-xl px-4 py-3 transition-colors hover:bg-hover"
             >
               <span className="truncate font-medium">{w.name}</span>
               <ArrowRightIcon className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
