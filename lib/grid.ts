@@ -96,3 +96,29 @@ export function buildGrid({ from, to, weekStart, divider }: GridOptions): Segmen
 
   return segments;
 }
+
+/**
+ * The same grid for the vertical view, newest first: segments in reverse, and
+ * each segment's weeks in reverse. Days within a week keep their order, since
+ * a week reads left to right. Month labels stay on the week holding the 1st.
+ */
+export function newestFirst(segments: Segment[]): Segment[] {
+  return [...segments].reverse().map((s) => ({ ...s, columns: [...s.columns].reverse() }));
+}
+
+/**
+ * Month labels for the vertical view. Reading top-down (newest first), a month
+ * starts at its *newest* week, so each week is labelled when its latest day
+ * falls in a different month from the week above it. The first row always is.
+ */
+export function verticalMonthLabels(weeks: Column[]): (string | undefined)[] {
+  let previous: string | null = null;
+  return weeks.map((week) => {
+    const latest = [...week.days].reverse().find(Boolean);
+    if (!latest) return undefined;
+    const month = latest.slice(0, 7);
+    const label = month !== previous ? monthLabel(latest) : undefined;
+    previous = month;
+    return label;
+  });
+}

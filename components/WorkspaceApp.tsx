@@ -1,9 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3Icon, EyeIcon, LinkIcon, MoonIcon, PlusIcon, Settings2Icon, SunIcon, UserPlusIcon } from "lucide-react";
+import {
+  BarChart3Icon,
+  Columns3Icon,
+  EyeIcon,
+  LinkIcon,
+  MoonIcon,
+  PlusIcon,
+  Rows3Icon,
+  Settings2Icon,
+  SunIcon,
+  UserPlusIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { ActivityGrid } from "@/components/ActivityGrid";
+import type { GridData } from "@/components/grid/shared";
 import { Avatar } from "@/components/Avatar";
 import { CategoryDialog } from "@/components/CategoryDialog";
 import { DayDialog } from "@/components/DayDialog";
@@ -12,6 +24,7 @@ import { PersonDialog } from "@/components/PersonDialog";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { ShareDialog } from "@/components/ShareDialog";
 import { StatsSheet } from "@/components/StatsSheet";
+import { VerticalGrid } from "@/components/VerticalGrid";
 import { useTheme } from "@/components/ThemeProvider";
 import { Button } from "@/components/ui/button";
 import { rememberWorkspace } from "@/lib/recent";
@@ -19,6 +32,7 @@ import { buildGrid, gridStart } from "@/lib/grid";
 import { cellBackground, shade, shadeDays } from "@/lib/intensity";
 import type { IsoDay } from "@/lib/dates";
 import { useMe } from "@/lib/me";
+import { useOrientation } from "@/lib/orientation";
 import type { Category, Entry, Person, Workspace } from "@/lib/types";
 import { useToday } from "@/lib/useToday";
 import { cn } from "@/lib/utils";
@@ -50,6 +64,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
   const [shareOpen, setShareOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [me, setMe] = useMe(workspace.slug);
+  const [orientation, setOrientation] = useOrientation();
 
   useEffect(() => {
     // The view link doesn't carry the edit slug, so there's nothing to remember.
@@ -147,154 +162,155 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
   let summary = `${loggedDays} day${loggedDays === 1 ? "" : "s"} with ${filterCategory ? filterCategory.name.toLowerCase() : "something logged"}`;
   if (filterPerson) summary += ` by ${filterPerson.name.split(/\s+/)[0]}`;
 
-  return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 sm:py-12">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            Ram
-            {readOnly && (
-              <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10px] tracking-normal normal-case text-secondary-foreground">
-                <EyeIcon className="size-3" /> View only
-              </span>
+  const gridData: GridData | null = today
+    ? { cells, entriesByDay, categoriesById, peopleById, categoryId: filter, today, readOnly, onSelectDay: setOpenDay }
+    : null;
+
+  // ── Pieces shared by both layouts ────────────────────────────────────────
+
+  const eyebrow = (
+    <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+      Ram
+      {readOnly && (
+        <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10px] tracking-normal normal-case text-secondary-foreground">
+          <EyeIcon className="size-3" /> View only
+        </span>
+      )}
+    </p>
+  );
+
+  const peopleRow = (people.length > 0 || !readOnly) && (
+    <div className="flex flex-wrap items-center gap-1" aria-label="Filter by person" role="group">
+      {people.map((p) => (
+        <Hint
+          key={p.id}
+          label={
+            personFilter === p.id ? (
+              <>
+                Showing {p.name}
+                <span className="block opacity-70">Click to show everyone</span>
+              </>
+            ) : (
+              `Show only ${p.name}`
+            )
+          }
+        >
+          <button
+            type="button"
+            aria-pressed={personFilter === p.id}
+            aria-label={`Show only ${p.name}`}
+            onClick={() => setPersonFilter(personFilter === p.id ? null : p.id)}
+            className={cn(
+              "rounded-full outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-ring",
+              personFilter && personFilter !== p.id && "opacity-40 hover:opacity-80",
+              personFilter === p.id && "ring-2 ring-ring ring-offset-2 ring-offset-background",
             )}
-          </p>
-          <h1 className="truncate text-3xl font-semibold tracking-tight sm:text-4xl">{workspace.name}</h1>
-          {(people.length > 0 || !readOnly) && (
-            <div className="mt-3 flex flex-wrap items-center gap-1" aria-label="Filter by person" role="group">
-              {people.map((p) => (
-                <Hint
-                  key={p.id}
-                  label={
-                    personFilter === p.id ? (
-                      <>
-                        Showing {p.name}
-                        <span className="block opacity-70">Click to show everyone</span>
-                      </>
-                    ) : (
-                      `Show only ${p.name}`
-                    )
-                  }
-                >
-                  <button
-                    type="button"
-                    aria-pressed={personFilter === p.id}
-                    aria-label={`Show only ${p.name}`}
-                    onClick={() => setPersonFilter(personFilter === p.id ? null : p.id)}
-                    className={cn(
-                      "rounded-full outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-ring",
-                      personFilter && personFilter !== p.id && "opacity-40 hover:opacity-80",
-                      personFilter === p.id && "ring-2 ring-ring ring-offset-2 ring-offset-background",
-                    )}
-                  >
-                    <Avatar person={p} title={null} />
-                  </button>
-                </Hint>
-              ))}
-              {!readOnly &&
-                (people.length === 0 ? (
-                  <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setEditingPerson(null)}>
-                    <UserPlusIcon /> Add people
-                  </Button>
-                ) : (
-                  <Hint label="Add a person">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="rounded-full text-muted-foreground"
-                      aria-label="Add a person"
-                      onClick={() => setEditingPerson(null)}
-                    >
-                      <PlusIcon />
-                    </Button>
-                  </Hint>
-                ))}
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          {!readOnly && (
-            <Button variant="ghost" size="sm" onClick={() => setShareOpen(true)}>
-              <LinkIcon /> Share
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={() => setStatsOpen(true)}>
-            <BarChart3Icon /> Stats
+          >
+            <Avatar person={p} title={null} />
+          </button>
+        </Hint>
+      ))}
+      {!readOnly &&
+        (people.length === 0 ? (
+          <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setEditingPerson(null)}>
+            <UserPlusIcon /> Add people
           </Button>
-          {!readOnly && (
-            <Hint label="Settings">
-              <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
-                <Settings2Icon />
-              </Button>
-            </Hint>
-          )}
-          <Hint label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
+        ) : (
+          <Hint label="Add a person">
             <Button
               variant="ghost"
-              size="icon-sm"
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              onClick={toggleTheme}
+              size="icon"
+              className="rounded-full text-muted-foreground"
+              aria-label="Add a person"
+              onClick={() => setEditingPerson(null)}
             >
-              {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+              <PlusIcon />
             </Button>
           </Hint>
-        </div>
-      </header>
-
-      <nav aria-label="Filter by category" className="mt-8 flex flex-wrap items-center gap-1.5">
-        <Chip active={filter === null} onClick={() => setFilter(null)}>
-          All
-        </Chip>
-        {categories.map((c) => (
-          <Chip key={c.id} active={filter === c.id} onClick={() => setFilter(filter === c.id ? null : c.id)}>
-            <span className="size-2 rounded-full" style={{ background: c.color }} />
-            {c.name}
-          </Chip>
         ))}
-        {!readOnly && (
-          <Button variant="ghost" size="sm" className="rounded-full text-muted-foreground" onClick={() => setEditingCategory(null)}>
-            <PlusIcon /> Category
+    </div>
+  );
+
+  const nextOrientation = orientation === "vertical" ? "horizontal" : "vertical";
+  const actions = (
+    <div className="flex flex-wrap items-center gap-1">
+      {!readOnly && (
+        <Button variant="ghost" size="sm" onClick={() => setShareOpen(true)}>
+          <LinkIcon /> Share
+        </Button>
+      )}
+      <Button variant="ghost" size="sm" onClick={() => setStatsOpen(true)}>
+        <BarChart3Icon /> Stats
+      </Button>
+      {!readOnly && (
+        <Hint label="Settings">
+          <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
+            <Settings2Icon />
           </Button>
-        )}
-      </nav>
+        </Hint>
+      )}
+      <Hint label={`Switch to ${nextOrientation} view`}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Switch to ${nextOrientation} view`}
+          onClick={() => setOrientation(nextOrientation)}
+        >
+          {orientation === "vertical" ? <Columns3Icon /> : <Rows3Icon />}
+        </Button>
+      </Hint>
+      <Hint label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          onClick={toggleTheme}
+        >
+          {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+        </Button>
+      </Hint>
+    </div>
+  );
 
-      <section className="mt-4 rounded-2xl bg-popover p-4 sm:p-6 dark:bg-card">
-        {today ? (
-          <ActivityGrid
-            segments={segments}
-            cells={cells}
-            entriesByDay={entriesByDay}
-            categoriesById={categoriesById}
-            peopleById={peopleById}
-            categoryId={filter}
-            today={today}
-            weekStart={weekStart}
-            divider={divider}
-            onSelectDay={setOpenDay}
-          />
-        ) : (
-          <div className="h-[168px] sm:h-[196px] lg:h-[224px]" />
-        )}
+  const categoryChips = (stacked: boolean) => (
+    <nav
+      aria-label="Filter by category"
+      className={cn("flex flex-wrap items-center gap-1.5", stacked && "lg:flex-col lg:flex-nowrap lg:items-start lg:gap-1")}
+    >
+      <Chip active={filter === null} onClick={() => setFilter(null)}>
+        All
+      </Chip>
+      {categories.map((c) => (
+        <Chip key={c.id} active={filter === c.id} onClick={() => setFilter(filter === c.id ? null : c.id)}>
+          <span className="size-2 rounded-full" style={{ background: c.color }} />
+          {c.name}
+        </Chip>
+      ))}
+      {!readOnly && (
+        <Button variant="ghost" size="sm" className="rounded-full text-muted-foreground" onClick={() => setEditingCategory(null)}>
+          <PlusIcon /> Category
+        </Button>
+      )}
+    </nav>
+  );
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span>{summary}</span>
-          <span className="flex items-center gap-1" aria-hidden>
-            Less
-            <span className="size-3 rounded-[3px]" style={{ background: cellBackground(undefined) }} />
-            {([1, 2, 3, 4] as const).map((l) => (
-              <span key={l} className="size-3 rounded-[3px]" style={{ background: shade(legendColor, l) }} />
-            ))}
-            More
-          </span>
-        </div>
-      </section>
+  const legend = (
+    <span className="flex items-center gap-1" aria-hidden>
+      Less
+      <span className="size-3 rounded-[3px]" style={{ background: cellBackground(undefined) }} />
+      {([1, 2, 3, 4] as const).map((l) => (
+        <span key={l} className="size-3 rounded-[3px]" style={{ background: shade(legendColor, l) }} />
+      ))}
+      More
+    </span>
+  );
 
-      <p className="mt-4 hidden text-xs text-muted-foreground sm:block">
-        {readOnly
-          ? "Click any day to see what was logged. Arrow keys move between days."
-          : "Click any day to log what you did. Arrow keys move between days."}
-      </p>
+  const hint = readOnly
+    ? "Click any day to see what was logged. Arrow keys move between days."
+    : "Click any day to log what you did. Arrow keys move between days.";
 
+  const dialogs = (
+    <>
       <DayDialog
         slug={workspace.slug}
         day={openDay}
@@ -356,6 +372,80 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
           />
         </>
       )}
+    </>
+  );
+
+  // Orientation lives in this browser, so it's unknown until hydration. Render
+  // nothing rather than one layout and then jump to the other.
+  if (!orientation) return <main className="min-h-dvh" />;
+
+  // ── Vertical: sidebar on the left, the grid in its own scrolling pane ────
+
+  if (orientation === "vertical") {
+    return (
+      <main className="w-full lg:grid lg:h-dvh lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <aside className="flex flex-col gap-6 px-4 pt-8 pb-4 sm:px-8 lg:overflow-y-auto lg:py-12 lg:pr-4">
+          <div className="min-w-0">
+            {eyebrow}
+            <h1 className="text-3xl font-semibold tracking-tight [overflow-wrap:anywhere] sm:text-4xl">{workspace.name}</h1>
+            {peopleRow && <div className="mt-3">{peopleRow}</div>}
+          </div>
+          <div className="-ml-2.5">{actions}</div>
+          {categoryChips(true)}
+          <div className="space-y-2 text-xs text-muted-foreground">
+            <p>{summary}</p>
+            {legend}
+          </div>
+          <p className="mt-auto hidden text-xs text-muted-foreground lg:block">{hint}</p>
+        </aside>
+        {/* The pane itself has no vertical padding: sticky elements pin to the
+            scroll container's padding edge, so padding here would leave a gap
+            above the weekday header for rows to show through. */}
+        <section className="px-4 pb-8 sm:px-8 lg:overflow-y-auto lg:pb-0 lg:pl-4" aria-label="Activity">
+          <div className="w-fit max-w-full rounded-2xl bg-popover p-4 sm:p-6 lg:my-12 dark:bg-card">
+            {gridData ? (
+              <VerticalGrid segments={segments} data={gridData} weekStart={weekStart} divider={divider} />
+            ) : (
+              <div className="h-96" />
+            )}
+          </div>
+        </section>
+        {dialogs}
+      </main>
+    );
+  }
+
+  // ── Horizontal: the original layout ──────────────────────────────────────
+
+  return (
+    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 sm:py-12">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          {eyebrow}
+          <h1 className="truncate text-3xl font-semibold tracking-tight sm:text-4xl">{workspace.name}</h1>
+          {peopleRow && <div className="mt-3">{peopleRow}</div>}
+        </div>
+        {actions}
+      </header>
+
+      <div className="mt-8">{categoryChips(false)}</div>
+
+      <section className="mt-4 rounded-2xl bg-popover p-4 sm:p-6 dark:bg-card">
+        {gridData ? (
+          <ActivityGrid segments={segments} data={gridData} weekStart={weekStart} divider={divider} />
+        ) : (
+          <div className="h-[168px] sm:h-[196px] lg:h-[224px]" />
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+          <span>{summary}</span>
+          {legend}
+        </div>
+      </section>
+
+      <p className="mt-4 hidden text-xs text-muted-foreground sm:block">{hint}</p>
+
+      {dialogs}
     </main>
   );
 }
