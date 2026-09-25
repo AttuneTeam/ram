@@ -24,8 +24,17 @@ export const categoryInput = z.object({
     .optional(),
 });
 
+export const personInput = z.object({
+  name: z.string().trim().min(1, "Name is required").max(60),
+});
+
 export const entryInput = z.object({
   categoryId: z.uuid(),
+  personId: z
+    .uuid()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? null),
   day: z.string().refine(isValidDay, "Invalid date"),
   description: z.string().trim().max(280).default(""),
   quantity: z

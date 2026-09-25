@@ -23,7 +23,7 @@ export default async function WorkspacePage({ params, searchParams }: Props) {
   if (!row) notFound();
   if (!(await hasAccess(row))) return <PinGate slug={slug} />;
 
-  const [{ categories, entries }, { new: isNew }] = await Promise.all([
+  const [{ categories, people, entries }, { new: isNew }] = await Promise.all([
     loadWorkspaceData(row.id),
     searchParams,
   ]);
@@ -32,6 +32,7 @@ export default async function WorkspacePage({ params, searchParams }: Props) {
     <WorkspaceApp
       workspace={toWorkspace(row)}
       categories={categories}
+      people={people}
       entries={entries}
       isNew={isNew === "1"}
     />

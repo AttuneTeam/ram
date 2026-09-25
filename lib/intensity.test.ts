@@ -6,7 +6,7 @@ const reading: Category = { id: "rd", name: "Reading", color: "#c8701c", unit: "
 
 let n = 0;
 function entry(categoryId: string, day: string, quantity: number | null = null): Entry {
-  return { id: `e${n++}`, categoryId, day, description: "", quantity, createdAt: `${day}T00:00:0${n % 10}Z` };
+  return { id: `e${n++}`, categoryId, day, description: "", quantity, personId: null, createdAt: `${day}T00:00:0${n % 10}Z` };
 }
 
 describe("levelFor", () => {

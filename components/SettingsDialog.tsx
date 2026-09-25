@@ -4,24 +4,36 @@ import { useState, useTransition } from "react";
 import { LockIcon, PencilIcon, PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { setPin, updateSettings } from "@/app/w/[slug]/actions";
+import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Divider } from "@/lib/grid";
-import type { Category, Workspace } from "@/lib/types";
+import type { Category, Person, Workspace } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Props = {
   open: boolean;
   workspace: Workspace;
   categories: Category[];
+  people: Person[];
   onClose: () => void;
   onWorkspaceChange: (w: Workspace) => void;
   onEditCategory: (c: Category | null) => void;
+  onEditPerson: (p: Person | null) => void;
 };
 
-export function SettingsDialog({ open, workspace, categories, onClose, onWorkspaceChange, onEditCategory }: Props) {
+export function SettingsDialog({
+  open,
+  workspace,
+  categories,
+  people,
+  onClose,
+  onWorkspaceChange,
+  onEditCategory,
+  onEditPerson,
+}: Props) {
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(workspace.name);
   const [pinDraft, setPinDraft] = useState("");
@@ -121,6 +133,32 @@ export function SettingsDialog({ open, workspace, categories, onClose, onWorkspa
               </li>
             ))}
           </ul>
+        </section>
+
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>People</Label>
+            <Button variant="ghost" size="xs" onClick={() => onEditPerson(null)}>
+              <PlusIcon /> Add
+            </Button>
+          </div>
+          {people.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Sharing with others? Add people so each entry shows who logged it.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {people.map((p) => (
+                <li key={p.id} className="flex items-center gap-2.5 rounded-lg bg-accent/60 py-1 pl-1.5 pr-1.5 text-sm">
+                  <Avatar person={p} size="sm" />
+                  <span className="flex-1 truncate">{p.name}</span>
+                  <Button variant="ghost" size="icon-xs" aria-label={`Edit ${p.name}`} onClick={() => onEditPerson(p)}>
+                    <PencilIcon />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className="space-y-2">

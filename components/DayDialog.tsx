@@ -9,15 +9,23 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Avatar } from "@/components/Avatar";
 import { longDayLabel, type IsoDay } from "@/lib/dates";
-import type { Category, Entry } from "@/lib/types";
+import type { Category, Entry, Person } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type Props = {
   slug: string;
   day: IsoDay | null;
   entries: Entry[];
   categories: Category[];
+  people: Person[];
+  /** Who "I" am on this device; pre-selects the "Logged by" picker. */
+  me: string | null;
+  onPickMe: (personId: string) => void;
   defaultCategoryId: string | null;
+  /** View-only link: list the day's entries, no form or edit controls. */
+  readOnly: boolean;
   onClose: () => void;
   onSaved: (entry: Entry) => void;
   onDeleted: (id: string) => void;
@@ -40,13 +48,20 @@ function DayBody({
   day,
   entries,
   categories,
+  people,
+  me,
+  onPickMe,
   defaultCategoryId,
+  readOnly,
   onSaved,
   onDeleted,
   onNewCategory,
 }: Props & { day: IsoDay }) {
   const byId = new Map(categories.map((c) => [c.id, c]));
+  const peopleById = new Map(people.map((p) => [p.id, p]));
   const [editing, setEditing] = useState<Entry | null>(null);
+  // Only pre-select "me" if that person still exists.
+  const [personId, setPersonId] = useState<string | null>(me && peopleById.has(me) ? me : null);
   const [categoryId, setCategoryId] = useState<string | null>(
     defaultCategoryId ?? categories[0]?.id ?? null,
   );
@@ -59,6 +74,7 @@ function DayBody({
 
   function reset() {
     setEditing(null);
+    setPersonId(me && peopleById.has(me) ? me : null);
     setDescription("");
     setQuantity("");
     // Ready for the next entry without reaching for the mouse.
@@ -68,6 +84,7 @@ function DayBody({
   function startEdit(entry: Entry) {
     setEditing(entry);
     setCategoryId(entry.categoryId);
+    setPersonId(entry.personId);
     setDescription(entry.description);
     setQuantity(entry.quantity?.toString() ?? "");
   }
@@ -80,11 +97,13 @@ function DayBody({
       toast.error("Amount must be a positive number");
       return;
     }
-    const input = { categoryId, day, description, quantity: q };
+    const input = { categoryId, personId, day, description, quantity: q };
     startTransition(async () => {
       const res = editing ? await updateEntry(slug, editing.id, input) : await createEntry(slug, input);
       if (!res.ok) return void toast.error(res.error);
       onSaved(res.data);
+      // Logging as someone makes them "me" on this device for next time.
+      if (!editing && personId) onPickMe(personId);
       reset();
     });
   }
@@ -104,7 +123,9 @@ function DayBody({
         <DialogTitle className="text-xl tracking-tight">{longDayLabel(day)}</DialogTitle>
         <DialogDescription>
           {entries.length === 0
-            ? "Nothing logged yet. What did you get done?"
+            ? readOnly
+              ? "Nothing logged this day."
+              : "Nothing logged yet. What did you get done?"
             : `${entries.length} thing${entries.length === 1 ? "" : "s"} logged`}
         </DialogDescription>
       </DialogHeader>
@@ -113,6 +134,7 @@ function DayBody({
         <ul className="space-y-1.5">
           {entries.map((entry) => {
             const cat = byId.get(entry.categoryId);
+            const author = entry.personId ? peopleById.get(entry.personId) : undefined;
             return (
               <li
                 key={entry.id}
@@ -125,21 +147,27 @@ function DayBody({
                   <div className="text-xs text-muted-foreground">
                     {cat?.name}
                     {entry.quantity != null && ` · ${entry.quantity}${cat?.unit ? ` ${cat.unit}` : ""}`}
+                    {author && ` · ${author.name}`}
                   </div>
                 </div>
-                <Button variant="ghost" size="icon-sm" aria-label="Edit entry" onClick={() => startEdit(entry)} disabled={pending}>
-                  <PencilIcon />
-                </Button>
-                <Button variant="ghost" size="icon-sm" aria-label="Delete entry" onClick={() => remove(entry)} disabled={pending}>
-                  <Trash2Icon />
-                </Button>
+                {author && <Avatar person={author} size="sm" />}
+                {!readOnly && (
+                  <>
+                    <Button variant="ghost" size="icon-sm" aria-label="Edit entry" onClick={() => startEdit(entry)} disabled={pending}>
+                      <PencilIcon />
+                    </Button>
+                    <Button variant="ghost" size="icon-sm" aria-label="Delete entry" onClick={() => remove(entry)} disabled={pending}>
+                      <Trash2Icon />
+                    </Button>
+                  </>
+                )}
               </li>
             );
           })}
         </ul>
       )}
 
-      {categories.length === 0 ? (
+      {readOnly ? null : categories.length === 0 ? (
         <div className="rounded-lg bg-accent/60 p-4 text-sm">
           <p className="text-muted-foreground">Create a category first — like “Exercise” or “Reading”.</p>
           <Button className="mt-3" size="sm" onClick={onNewCategory}>
@@ -148,6 +176,29 @@ function DayBody({
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-3">
+          {people.length > 0 && (
+            <div className="space-y-1.5">
+              <Label id="logged-by">Logged by</Label>
+              <div role="radiogroup" aria-labelledby="logged-by" className="flex flex-wrap gap-1.5">
+                {people.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={personId === p.id}
+                    onClick={() => setPersonId(p.id)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full py-0.5 pr-2.5 pl-0.5 text-sm text-muted-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      personId === p.id ? "bg-secondary text-secondary-foreground ring-2 ring-ring/40" : "hover:bg-accent",
+                    )}
+                  >
+                    <Avatar person={p} size="sm" className={personId === p.id ? "bg-background" : undefined} />
+                    {p.name.split(/\s+/)[0]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-[1fr_7rem] gap-3">
             <div className="space-y-1.5">
               <Label>Category</Label>
@@ -206,7 +257,10 @@ function DayBody({
                 Cancel
               </Button>
             )}
-            <Button type="submit" disabled={pending || !categoryId}>
+            {people.length > 0 && !personId && (
+              <span className="mr-auto self-center text-xs text-muted-foreground">Pick who you are</span>
+            )}
+            <Button type="submit" disabled={pending || !categoryId || (people.length > 0 && !personId)}>
               {editing ? "Save" : "Log it"}
             </Button>
           </div>

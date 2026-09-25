@@ -9,13 +9,25 @@ export type WorkspaceSettings = {
 
 export const DEFAULT_SETTINGS: WorkspaceSettings = { divider: "none", weekStart: 1 };
 
-/** What the client is allowed to see about a workspace. Never includes the PIN hash. */
+/**
+ * What the client is allowed to see about a workspace. Never includes the PIN
+ * hash. On the read-only view (/v/…) `slug` and `viewToken` are blanked, so
+ * the edit link never reaches someone who was only given the view link.
+ */
 export type Workspace = {
   slug: string;
   name: string;
   hasPin: boolean;
+  /** Secret for the read-only link, or null when it's turned off. */
+  viewToken: string | null;
   settings: WorkspaceSettings;
   createdAt: string;
+};
+
+export type Person = {
+  id: string;
+  name: string;
+  sortOrder: number;
 };
 
 export type Category = {
@@ -32,5 +44,7 @@ export type Entry = {
   day: IsoDay;
   description: string;
   quantity: number | null;
+  /** Who logged it; null when not attributed. */
+  personId: string | null;
   createdAt: string;
 };
