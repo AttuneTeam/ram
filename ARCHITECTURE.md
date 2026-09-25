@@ -69,12 +69,17 @@ db/migrations/              Plain SQL, applied in order by scripts/migrate.mjs
 
 ## How shading works
 
-- **One category selected:** a day's value is its summed quantity (e.g. minutes). If the
-  category never records quantities, it's the number of entries.
-- **All:** the value is the number of entries, coloured by the category logged most that day.
-- Values map to 4 levels against the **90th percentile** of non-zero days, not the max, so one
-  outlier doesn't wash the rest out. Colour is `color-mix()` of the category colour into
-  `--cell-empty`, so it works in both themes.
+- Each category is scaled **on its own**: a day's value is its summed quantity (e.g. minutes),
+  or its number of entries if the category never records quantities. Minutes and pages never
+  share a scale.
+- Values map to 4 levels against that category's **90th percentile** of non-zero days, not its
+  max, so one outlier doesn't wash the rest out.
+- **One category selected:** the cell is that category's shade.
+- **All:** the cell splits into equal vertical bands, one per category done that day, each in
+  its own shade. Bands follow category order (so Exercise is always in the same place), capped
+  at `MAX_BANDS` (4); the tooltip still lists everything. The legend switches to neutral grey.
+- Colour is `color-mix()` of the category colour into `--cell-empty`, so it works in both themes.
+  Several bands use a hard-stop `linear-gradient`.
 
 ## Why the grid renders client-only
 

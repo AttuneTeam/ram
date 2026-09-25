@@ -12,7 +12,7 @@ import { useTheme } from "@/components/ThemeProvider";
 import { Button } from "@/components/ui/button";
 import { rememberWorkspace } from "@/lib/recent";
 import { buildGrid, gridStart } from "@/lib/grid";
-import { cellBackground, LEVEL_MIX, shadeDays } from "@/lib/intensity";
+import { cellBackground, shade, shadeDays } from "@/lib/intensity";
 import type { IsoDay } from "@/lib/dates";
 import type { Category, Entry, Workspace } from "@/lib/types";
 import { useToday } from "@/lib/useToday";
@@ -81,7 +81,8 @@ export function WorkspaceApp(props: Props) {
   }, [cells, today, segments.length]);
 
   const filterCategory = filter ? categoriesById.get(filter) : null;
-  const legendColor = filterCategory?.color ?? "var(--primary)";
+  // "All" mixes category colours per cell, so its legend shows intensity in neutral grey.
+  const legendColor = filterCategory?.color ?? "var(--muted-foreground)";
 
   async function copyLink() {
     const url = `${window.location.origin}/w/${workspace.slug}`;
@@ -185,7 +186,7 @@ export function WorkspaceApp(props: Props) {
               <span
                 key={l}
                 className="size-3 rounded-[3px]"
-                style={{ background: `color-mix(in oklab, ${legendColor} ${LEVEL_MIX[l]}%, var(--cell-empty))` }}
+                style={{ background: shade(legendColor, l) }}
               />
             ))}
             More

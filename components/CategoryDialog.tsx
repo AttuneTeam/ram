@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SWATCHES } from "@/lib/palette";
-import { LEVEL_MIX } from "@/lib/intensity";
+import { shade } from "@/lib/intensity";
 import type { Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -142,7 +142,7 @@ function CategoryForm({
             <span
               key={l}
               className="size-4 rounded-[4px]"
-              style={{ background: `color-mix(in oklab, ${color} ${LEVEL_MIX[l]}%, var(--cell-empty))` }}
+              style={{ background: shade(color, l) }}
             />
           ))}
           More
