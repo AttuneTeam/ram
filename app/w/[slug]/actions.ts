@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import type { z } from "zod";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { db, FOREIGN_KEY_VIOLATION, pgCode, UNIQUE_VIOLATION } from "@/lib/db";
 import {
   LOCK_MINUTES,
   MAX_PIN_ATTEMPTS,
@@ -14,12 +14,17 @@ import {
 } from "@/lib/security";
 import {
   AccessError,
+  CATEGORY_COLUMNS,
+  ENTRY_COLUMNS,
   cookieSecret,
   findWorkspaceRow,
   requireWorkspace,
   toCategory,
   toEntry,
   toWorkspace,
+  type CategoryRow,
+  type EntryRow,
+  type WorkspaceRow,
 } from "@/lib/workspace";
 import { categoryInput, entryInput, settingsInput } from "@/lib/validation";
 import { DEFAULT_SETTINGS, type Category, type Entry, type Workspace } from "@/lib/types";
@@ -29,6 +34,8 @@ import { DEFAULT_SETTINGS, type Category, type Entry, type Workspace } from "@/l
  * and the UI needs the message to show a useful toast.
  */
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
+
+class UserError extends Error {}
 
 async function run<T>(fn: () => Promise<T>): Promise<Result<T>> {
   try {
@@ -41,12 +48,17 @@ async function run<T>(fn: () => Promise<T>): Promise<Result<T>> {
   }
 }
 
-class UserError extends Error {}
-
 function parse<S extends z.ZodType>(schema: S, value: unknown): z.output<S> {
   const result = schema.safeParse(value);
   if (!result.success) throw new UserError(result.error.issues[0].message);
   return result.data;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function checkId(id: string): string {
+  if (!UUID.test(id)) throw new UserError("Not found");
+  return id;
 }
 
 async function setAccessCookie(slug: string, pinHash: string) {
@@ -65,34 +77,31 @@ export async function unlockWorkspace(slug: string, pin: string): Promise<Result
   const row = await findWorkspaceRow(slug);
   if (!row || !row.pin_hash) return { ok: false, error: "Workspace not found" };
 
-  if (row.pin_locked_until && new Date(row.pin_locked_until) > new Date()) {
-    const mins = Math.ceil((new Date(row.pin_locked_until).getTime() - Date.now()) / 60_000);
-    return { ok: false, error: `Too many attempts. Try again in ${mins} min.` };
+  const lockedMessage = (until: Date) =>
+    `Too many attempts. Try again in ${Math.ceil((until.getTime() - Date.now()) / 60_000)} min.`;
+
+  if (row.pin_locked_until && row.pin_locked_until > new Date()) {
+    return { ok: false, error: lockedMessage(row.pin_locked_until) };
   }
 
-  const db = createAdminClient();
+  const sql = db();
   if (!isValidPin(pin) || !verifyPin(pin, row.pin_hash)) {
-    const attempts = row.failed_pin_attempts + 1;
-    const locked = attempts >= MAX_PIN_ATTEMPTS;
-    await db
-      .from("workspaces")
-      .update({
-        failed_pin_attempts: locked ? 0 : attempts,
-        pin_locked_until: locked ? new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString() : null,
-      })
-      .eq("id", row.id);
-    return {
-      ok: false,
-      error: locked
-        ? `Too many attempts. Locked for ${LOCK_MINUTES} min.`
-        : `Wrong PIN. ${MAX_PIN_ATTEMPTS - attempts} attempt${MAX_PIN_ATTEMPTS - attempts === 1 ? "" : "s"} left.`,
-    };
+    // One atomic statement, so parallel guesses can't all read the same count.
+    const [updated] = await sql<{ failed_pin_attempts: number; pin_locked_until: Date | null }[]>`
+      update workspaces set
+        failed_pin_attempts = case when failed_pin_attempts + 1 >= ${MAX_PIN_ATTEMPTS} then 0 else failed_pin_attempts + 1 end,
+        pin_locked_until = case when failed_pin_attempts + 1 >= ${MAX_PIN_ATTEMPTS}
+          then now() + make_interval(mins => ${LOCK_MINUTES}) else pin_locked_until end
+      where id = ${row.id}
+      returning failed_pin_attempts, pin_locked_until`;
+    if (updated.pin_locked_until && updated.pin_locked_until > new Date()) {
+      return { ok: false, error: `Too many attempts. Locked for ${LOCK_MINUTES} min.` };
+    }
+    const left = MAX_PIN_ATTEMPTS - updated.failed_pin_attempts;
+    return { ok: false, error: `Wrong PIN. ${left} attempt${left === 1 ? "" : "s"} left.` };
   }
 
-  await db
-    .from("workspaces")
-    .update({ failed_pin_attempts: 0, pin_locked_until: null })
-    .eq("id", row.id);
+  await sql`update workspaces set failed_pin_attempts = 0, pin_locked_until = null where id = ${row.id}`;
   await setAccessCookie(row.slug, row.pin_hash);
   return { ok: true, data: null };
 }
@@ -103,16 +112,14 @@ export async function setPin(slug: string, pin: string | null): Promise<Result<W
     const row = await requireWorkspace(slug);
     if (pin !== null && !isValidPin(pin)) throw new UserError("PIN must be 4 digits");
     const pinHash = pin === null ? null : hashPin(pin);
-    const { data, error } = await createAdminClient()
-      .from("workspaces")
-      .update({ pin_hash: pinHash, failed_pin_attempts: 0, pin_locked_until: null })
-      .eq("id", row.id)
-      .select("*")
-      .single();
-    if (error) throw error;
+    const [updated] = await db()<WorkspaceRow[]>`
+      update workspaces
+      set pin_hash = ${pinHash}, failed_pin_attempts = 0, pin_locked_until = null
+      where id = ${row.id}
+      returning *`;
     if (pinHash) await setAccessCookie(row.slug, pinHash);
     else (await cookies()).delete(accessCookieName(row.slug));
-    return toWorkspace(data);
+    return toWorkspace(updated);
   });
 }
 
@@ -125,25 +132,22 @@ export async function updateSettings(
   return run(async () => {
     const row = await requireWorkspace(slug);
     const { name, ...settings } = parse(settingsInput, input);
-    const { data, error } = await createAdminClient()
-      .from("workspaces")
-      .update({
-        ...(name ? { name } : {}),
-        settings: { ...DEFAULT_SETTINGS, ...(row.settings ?? {}), ...settings },
-      })
-      .eq("id", row.id)
-      .select("*")
-      .single();
-    if (error) throw error;
-    return toWorkspace(data);
+    const sql = db();
+    const merged = { ...DEFAULT_SETTINGS, ...(row.settings ?? {}), ...settings };
+    const [updated] = await sql<WorkspaceRow[]>`
+      update workspaces
+      set name = ${name ?? row.name}, settings = ${sql.json(merged)}
+      where id = ${row.id}
+      returning *`;
+    return toWorkspace(updated);
   });
 }
 
 // ── Categories ─────────────────────────────────────────────────────────────
 
-function categoryError(error: { code?: string }): never {
-  if (error.code === "23505") throw new UserError("You already have a category with that name");
-  throw error;
+function rethrowCategory(err: unknown): never {
+  if (pgCode(err) === UNIQUE_VIOLATION) throw new UserError("You already have a category with that name");
+  throw err;
 }
 
 export async function createCategory(
@@ -152,20 +156,16 @@ export async function createCategory(
 ): Promise<Result<Category>> {
   return run(async () => {
     const row = await requireWorkspace(slug);
-    const values = parse(categoryInput, input);
-    const db = createAdminClient();
-    const { count } = await db
-      .from("categories")
-      .select("id", { count: "exact", head: true })
-      .eq("workspace_id", row.id);
-    if ((count ?? 0) >= 50) throw new UserError("That's a lot of categories — 50 is the limit");
-    const { data, error } = await db
-      .from("categories")
-      .insert({ ...values, unit: values.unit ?? null, workspace_id: row.id, sort_order: count ?? 0 })
-      .select("id, name, color, unit, sort_order")
-      .single();
-    if (error) categoryError(error);
-    return toCategory(data);
+    const { name, color, unit } = parse(categoryInput, input);
+    const sql = db();
+    const [{ count }] = await sql<{ count: number }[]>`
+      select count(*)::int as count from categories where workspace_id = ${row.id}`;
+    if (count >= 50) throw new UserError("That's a lot of categories — 50 is the limit");
+    const [created] = await sql<CategoryRow[]>`
+      insert into categories (workspace_id, name, color, unit, sort_order)
+      values (${row.id}, ${name}, ${color}, ${unit ?? null}, ${count})
+      returning ${sql(CATEGORY_COLUMNS)}`.catch(rethrowCategory);
+    return toCategory(created);
   });
 }
 
@@ -176,16 +176,14 @@ export async function updateCategory(
 ): Promise<Result<Category>> {
   return run(async () => {
     const row = await requireWorkspace(slug);
-    const values = parse(categoryInput, input);
-    const { data, error } = await createAdminClient()
-      .from("categories")
-      .update({ ...values, unit: values.unit ?? null })
-      .eq("id", id)
-      .eq("workspace_id", row.id)
-      .select("id, name, color, unit, sort_order")
-      .single();
-    if (error) categoryError(error);
-    return toCategory(data);
+    const { name, color, unit } = parse(categoryInput, input);
+    const sql = db();
+    const [updated] = await sql<CategoryRow[]>`
+      update categories set name = ${name}, color = ${color}, unit = ${unit ?? null}
+      where id = ${checkId(id)}::uuid and workspace_id = ${row.id}
+      returning ${sql(CATEGORY_COLUMNS)}`.catch(rethrowCategory);
+    if (!updated) throw new UserError("That category no longer exists");
+    return toCategory(updated);
   });
 }
 
@@ -193,12 +191,7 @@ export async function updateCategory(
 export async function deleteCategory(slug: string, id: string): Promise<Result<null>> {
   return run(async () => {
     const row = await requireWorkspace(slug);
-    const { error } = await createAdminClient()
-      .from("categories")
-      .delete()
-      .eq("id", id)
-      .eq("workspace_id", row.id);
-    if (error) throw error;
+    await db()`delete from categories where id = ${checkId(id)}::uuid and workspace_id = ${row.id}`;
     return null;
   });
 }
@@ -212,54 +205,45 @@ type EntryFields = {
   quantity?: number | null;
 };
 
-function entryValues(input: EntryFields) {
-  const v = parse(entryInput, input);
-  return { category_id: v.categoryId, day: v.day, description: v.description, quantity: v.quantity };
+function rethrowEntry(err: unknown): never {
+  if (pgCode(err) === FOREIGN_KEY_VIOLATION) throw new UserError("That category no longer exists");
+  throw err;
 }
-
-const ENTRY_COLUMNS = "id, category_id, day, description, quantity, created_at";
 
 export async function createEntry(slug: string, input: EntryFields): Promise<Result<Entry>> {
   return run(async () => {
     const row = await requireWorkspace(slug);
+    const v = parse(entryInput, input);
+    const sql = db();
     // The composite FK rejects a category from another workspace.
-    const { data, error } = await createAdminClient()
-      .from("entries")
-      .insert({ ...entryValues(input), workspace_id: row.id })
-      .select(ENTRY_COLUMNS)
-      .single();
-    if (error) {
-      if (error.code === "23503") throw new UserError("That category no longer exists");
-      throw error;
-    }
-    return toEntry(data);
+    const [created] = await sql<EntryRow[]>`
+      insert into entries (workspace_id, category_id, day, description, quantity)
+      values (${row.id}, ${v.categoryId}, ${v.day}, ${v.description}, ${v.quantity})
+      returning ${sql(ENTRY_COLUMNS)}`.catch(rethrowEntry);
+    return toEntry(created);
   });
 }
 
 export async function updateEntry(slug: string, id: string, input: EntryFields): Promise<Result<Entry>> {
   return run(async () => {
     const row = await requireWorkspace(slug);
-    const { data, error } = await createAdminClient()
-      .from("entries")
-      .update(entryValues(input))
-      .eq("id", id)
-      .eq("workspace_id", row.id)
-      .select(ENTRY_COLUMNS)
-      .single();
-    if (error) throw error;
-    return toEntry(data);
+    const v = parse(entryInput, input);
+    const sql = db();
+    const [updated] = await sql<EntryRow[]>`
+      update entries set
+        category_id = ${v.categoryId}, day = ${v.day},
+        description = ${v.description}, quantity = ${v.quantity}
+      where id = ${checkId(id)}::uuid and workspace_id = ${row.id}
+      returning ${sql(ENTRY_COLUMNS)}`.catch(rethrowEntry);
+    if (!updated) throw new UserError("That entry no longer exists");
+    return toEntry(updated);
   });
 }
 
 export async function deleteEntry(slug: string, id: string): Promise<Result<null>> {
   return run(async () => {
     const row = await requireWorkspace(slug);
-    const { error } = await createAdminClient()
-      .from("entries")
-      .delete()
-      .eq("id", id)
-      .eq("workspace_id", row.id);
-    if (error) throw error;
+    await db()`delete from entries where id = ${checkId(id)}::uuid and workspace_id = ${row.id}`;
     return null;
   });
 }

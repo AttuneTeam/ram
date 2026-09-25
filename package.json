@@ -10,17 +10,18 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run lint && tsc --noEmit && npm test",
-    "db:start": "supabase start",
-    "db:reset": "supabase db reset"
+    "db:up": "docker compose up -d",
+    "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
+    "db:reset": "docker compose down -v && docker compose up -d && sleep 2 && npm run db:migrate"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
-    "@supabase/supabase-js": "^2.117.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.48.0",
     "next": "^16.2.1",
+    "postgres": "^3.4.9",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "server-only": "^0.0.1",
@@ -37,7 +38,6 @@
     "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.2.1",
-    "supabase": "^2.117.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "vitest": "^5.0.1"

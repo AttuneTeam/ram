@@ -1,6 +1,6 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { createAdminClient } from "./supabase/admin";
+import { db } from "./db";
 import { accessCookieName, verifyAccessToken } from "./security";
 import { DEFAULT_SETTINGS, type Category, type Entry, type Workspace, type WorkspaceSettings } from "./types";
 
@@ -10,12 +10,12 @@ export type WorkspaceRow = {
   name: string;
   pin_hash: string | null;
   failed_pin_attempts: number;
-  pin_locked_until: string | null;
+  pin_locked_until: Date | null;
   settings: Partial<WorkspaceSettings> | null;
-  created_at: string;
+  created_at: Date;
 };
 
-type CategoryRow = {
+export type CategoryRow = {
   id: string;
   name: string;
   color: string;
@@ -23,14 +23,17 @@ type CategoryRow = {
   sort_order: number;
 };
 
-type EntryRow = {
+export type EntryRow = {
   id: string;
   category_id: string;
   day: string;
   description: string;
-  quantity: number | string | null;
-  created_at: string;
+  quantity: string | null;
+  created_at: Date;
 };
+
+export const CATEGORY_COLUMNS = ["id", "name", "color", "unit", "sort_order"] as const;
+export const ENTRY_COLUMNS = ["id", "category_id", "day", "description", "quantity", "created_at"] as const;
 
 export function cookieSecret(): string {
   const secret = process.env.ACCESS_COOKIE_SECRET;
@@ -46,7 +49,7 @@ export function toWorkspace(row: WorkspaceRow): Workspace {
     name: row.name,
     hasPin: row.pin_hash !== null,
     settings: { ...DEFAULT_SETTINGS, ...(row.settings ?? {}) },
-    createdAt: row.created_at,
+    createdAt: row.created_at.toISOString(),
   };
 }
 
@@ -66,21 +69,16 @@ export function toEntry(row: EntryRow): Entry {
     categoryId: row.category_id,
     day: row.day,
     description: row.description,
-    // Postgres numeric arrives as a string.
+    // Postgres numeric arrives as a string to avoid precision loss.
     quantity: row.quantity === null ? null : Number(row.quantity),
-    createdAt: row.created_at,
+    createdAt: row.created_at.toISOString(),
   };
 }
 
 export async function findWorkspaceRow(slug: string): Promise<WorkspaceRow | null> {
   if (!/^[A-Za-z0-9]{10,32}$/.test(slug)) return null;
-  const { data, error } = await createAdminClient()
-    .from("workspaces")
-    .select("*")
-    .eq("slug", slug)
-    .maybeSingle();
-  if (error) throw error;
-  return data as WorkspaceRow | null;
+  const [row] = await db()<WorkspaceRow[]>`select * from workspaces where slug = ${slug}`;
+  return row ?? null;
 }
 
 export async function hasAccess(row: WorkspaceRow): Promise<boolean> {
@@ -98,35 +96,20 @@ export async function requireWorkspace(slug: string): Promise<WorkspaceRow> {
   return row;
 }
 
-const PAGE = 1000;
-
 export async function loadWorkspaceData(workspaceId: string) {
-  const db = createAdminClient();
-  const { data: categories, error } = await db
-    .from("categories")
-    .select("id, name, color, unit, sort_order")
-    .eq("workspace_id", workspaceId)
-    .order("sort_order")
-    .order("created_at");
-  if (error) throw error;
-
-  // PostgREST caps each response (1000 rows by default), so page through.
-  const entries: EntryRow[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error: entriesError } = await db
-      .from("entries")
-      .select("id, category_id, day, description, quantity, created_at")
-      .eq("workspace_id", workspaceId)
-      .order("day")
-      .order("created_at")
-      .range(from, from + PAGE - 1);
-    if (entriesError) throw entriesError;
-    entries.push(...(data as EntryRow[]));
-    if (data.length < PAGE) break;
-  }
-
+  const sql = db();
+  const [categories, entries] = await Promise.all([
+    sql<CategoryRow[]>`
+      select ${sql(CATEGORY_COLUMNS)} from categories
+      where workspace_id = ${workspaceId}
+      order by sort_order, created_at`,
+    sql<EntryRow[]>`
+      select ${sql(ENTRY_COLUMNS)} from entries
+      where workspace_id = ${workspaceId}
+      order by day, created_at`,
+  ]);
   return {
-    categories: (categories as CategoryRow[]).map(toCategory),
+    categories: categories.map(toCategory),
     entries: entries.map(toEntry),
   };
 }

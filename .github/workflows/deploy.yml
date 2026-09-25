@@ -11,16 +11,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: supabase/setup-cli@v1
+      - uses: actions/setup-node@v4
         with:
-          version: latest
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
 
       # Migrations run before the app deploys, so they must stay
       # backwards-compatible with the currently live code.
       - name: Run migrations
-        run: supabase db push --db-url "$SUPABASE_DB_URL"
+        run: node scripts/migrate.mjs
         env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          # Neon's direct (non-pooled) connection string.
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
 
       - name: Deploy to Vercel
         run: curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"

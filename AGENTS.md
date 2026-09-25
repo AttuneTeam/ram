@@ -5,5 +5,5 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- END:nextjs-agent-rules -->
 
 Read [`ARCHITECTURE.md`](ARCHITECTURE.md) before changing anything under `lib/workspace.ts`,
-`lib/security.ts`, `app/**/actions.ts` or `supabase/migrations/`. It records the access model
-(slug + optional PIN, service-role only, no anon grants) that every server action depends on.
+`lib/security.ts`, `app/**/actions.ts` or `db/migrations/`. It records the access model
+(slug + optional PIN, server-only database access) that every server action depends on.

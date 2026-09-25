@@ -1,0 +1,14 @@
+# Local Postgres for development. Production runs on Neon.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ram
+      POSTGRES_PASSWORD: ram
+      POSTGRES_DB: ram
+    ports:
+      - "54340:5432"
+    volumes:
+      - ram-db:/var/lib/postgresql/data
+volumes:
+  ram-db:

@@ -12,7 +12,7 @@ optionally locked with a 4-digit PIN.
 ## Tech stack
 
 Mirrors Attune: Next.js 16 (App Router, Turbopack), React 19, Tailwind CSS v4, shadcn/ui on
-`@base-ui/react` (not Radix), Supabase Postgres, Zod v4, Vitest, sonner, lucide-react.
+`@base-ui/react` (not Radix), Postgres on **Neon** via the `postgres` driver, Zod v4, Vitest, sonner, lucide-react.
 
 ---
 
@@ -20,12 +20,11 @@ Mirrors Attune: Next.js 16 (App Router, Turbopack), React 19, Tailwind CSS v4, s
 
 | Rule | Where |
 |---|---|
-| The browser never talks to Supabase. All reads/writes go through the Next.js server with the **service-role key**. | `lib/supabase/admin.ts` |
-| RLS is enabled on every table with **no policies**, and all grants are revoked from `anon`/`authenticated`. A leaked anon key reads nothing. | `supabase/migrations/001_schema.sql` |
+| The browser never talks to the database. Only the Next.js server holds `DATABASE_URL`, and it is never `NEXT_PUBLIC_`. There's no public data API to lock down. | `lib/db.ts` |
 | Every server action starts with `requireWorkspace(slug)`, which checks the slug exists and, if a PIN is set, that the request carries a valid access cookie. Queries are then also filtered by `workspace_id`. | `lib/workspace.ts`, `app/w/[slug]/actions.ts` |
-| An entry's category must belong to the same workspace. That's enforced by a composite FK, not just app code. | migration 001 |
+| An entry's category must belong to the same workspace. That's enforced by a composite FK, not just app code. | `db/migrations/001_schema.sql` |
 | Slugs are 14 chars from a 57-symbol alphabet (~82 bits). For a PIN-less workspace, the slug is the only secret. | `lib/security.ts` |
-| PINs are scrypt-hashed. 5 wrong attempts lock the workspace for 15 minutes. | `unlockWorkspace` |
+| PINs are scrypt-hashed. 5 wrong attempts lock the workspace for 15 minutes. The counter is updated in one atomic statement, so parallel guesses can't get around it. | `unlockWorkspace` |
 | The access cookie is an HMAC over `slug + pin_hash`, so changing or removing the PIN invalidates every issued cookie. | `lib/security.ts` |
 | A locked workspace's name is not revealed in the page title or metadata. | `app/w/[slug]/page.tsx` |
 
@@ -58,7 +57,10 @@ lib/
   intensity.ts              Entries → shade level 0–4 per day
   stats.ts                  Streaks, missed days, monthly buckets
   security.ts               Slugs, PIN hashing, access tokens
+  db.ts                     Server-only Postgres client (pooler-safe, dates kept as strings)
   workspace.ts              Server-only: load workspace, access check, row mappers
+
+db/migrations/              Plain SQL, applied in order by scripts/migrate.mjs
   palette.ts                Validated category swatches
   useToday.ts               Viewer-local "today" (client only)
 ```
@@ -90,14 +92,17 @@ with the other segment's days blanked. This keeps every segment a clean rectangl
 
 ```bash
 npm install
-npx supabase start   # Docker; applies supabase/migrations
-cp .env.example .env.local   # fill from `npx supabase status`
+npm run db:up                # Postgres 17 in Docker on :54340
+cp .env.example .env.local   # DATABASE_URL=postgres://ram:ram@127.0.0.1:54340/ram
+npm run db:migrate
 npm run dev
 ```
 
 ## Deploy
 
-- `main` → GitHub Action runs `supabase db push`, then triggers the Vercel deploy hook
-  (Vercel's own git deploys are disabled in `vercel.json`, same as Attune).
-- Vercel env: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ACCESS_COOKIE_SECRET`.
-- GitHub secrets (environment `production`): `SUPABASE_DB_URL`, `VERCEL_DEPLOY_HOOK_URL`.
+- `main` → GitHub Action runs `scripts/migrate.mjs` against Neon, then triggers the Vercel
+  deploy hook (Vercel's own git deploys are disabled in `vercel.json`, same as Attune).
+  Migrations are immutable once applied: add a new numbered file, and keep it additive.
+- Vercel env: `DATABASE_URL` (Neon **pooled** string), `ACCESS_COOKIE_SECRET`.
+- GitHub secrets (environment `production`): `DATABASE_URL_UNPOOLED` (Neon direct string),
+  `VERCEL_DEPLOY_HOOK_URL`.

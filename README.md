@@ -18,8 +18,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for how it fits together and the security
 
 ```bash
 npm install
-npx supabase start          # needs Docker
-cp .env.example .env.local  # fill in from `npx supabase status`
+npm run db:up               # local Postgres in Docker
+cp .env.example .env.local  # DATABASE_URL=postgres://ram:ram@127.0.0.1:54340/ram
+npm run db:migrate
 npm run dev
 ```
 
@@ -30,4 +31,5 @@ npm run dev
 | `npm run dev` | Dev server |
 | `npm test` | Vitest (pure logic in `lib/`) |
 | `npm run check` | Lint + type check + tests |
+| `npm run db:migrate` | Apply new files in `db/migrations/` |
 | `npm run db:reset` | Recreate the local database from migrations |

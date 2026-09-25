@@ -1,11 +1,9 @@
 -- Workspaces are the only tenant boundary. There are no user accounts: a
 -- workspace is reached by its unguessable slug, optionally gated by a PIN.
 --
--- The browser never talks to these tables. Every read and write goes through
--- the Next.js server using the service-role key, after the server has checked
--- the slug (and PIN cookie, when set). RLS is enabled with NO policies, so the
--- anon/authenticated roles are denied everything — if the anon key ever leaks
--- into a client bundle, it can read nothing.
+-- Only the Next.js server connects to this database (DATABASE_URL is
+-- server-only). Every query runs after `requireWorkspace` has checked the slug
+-- and PIN cookie, and is filtered by workspace_id.
 
 create table workspaces (
   id                  uuid primary key default gen_random_uuid(),
@@ -51,9 +49,3 @@ create table entries (
 create index categories_workspace_idx on categories (workspace_id, sort_order);
 create index entries_workspace_day_idx on entries (workspace_id, day);
 create index entries_category_idx on entries (category_id);
-
-alter table workspaces enable row level security;
-alter table categories enable row level security;
-alter table entries    enable row level security;
-
-revoke all on workspaces, categories, entries from anon, authenticated;
