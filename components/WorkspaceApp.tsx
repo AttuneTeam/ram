@@ -168,14 +168,9 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
 
   // ── Pieces shared by both layouts ────────────────────────────────────────
 
-  const eyebrow = (
-    <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-      Ram
-      {readOnly && (
-        <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10px] tracking-normal normal-case text-secondary-foreground">
-          <EyeIcon className="size-3" /> View only
-        </span>
-      )}
+  const eyebrow = readOnly && (
+    <p className="mb-2 flex w-fit items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10px] text-secondary-foreground">
+      <EyeIcon className="size-3" /> View only
     </p>
   );
 
@@ -377,14 +372,14 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
 
   // Orientation lives in this browser, so it's unknown until hydration. Render
   // nothing rather than one layout and then jump to the other.
-  if (!orientation) return <main className="min-h-dvh" />;
+  if (!orientation) return <main className="flex-1" />;
 
   // ── Vertical: sidebar on the left, the grid in its own scrolling pane ────
 
   if (orientation === "vertical") {
     return (
-      <main className="w-full lg:grid lg:h-dvh lg:grid-cols-[18rem_minmax(0,1fr)]">
-        <aside className="flex flex-col gap-6 px-4 pt-8 pb-4 sm:px-8 lg:overflow-y-auto lg:py-12 lg:pr-4">
+      <main className="w-full lg:grid lg:h-[calc(100dvh-var(--header-h))] lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <aside className="flex flex-col gap-6 px-4 pt-4 pb-4 sm:px-8 lg:overflow-y-auto lg:pt-4 lg:pb-12 lg:pr-4">
           <div className="min-w-0">
             {eyebrow}
             <h1 className="text-3xl font-semibold tracking-tight [overflow-wrap:anywhere] sm:text-4xl">{workspace.name}</h1>
@@ -402,7 +397,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
             scroll container's padding edge, so padding here would leave a gap
             above the weekday header for rows to show through. */}
         <section className="px-4 pb-8 sm:px-8 lg:overflow-y-auto lg:pb-0 lg:pl-4" aria-label="Activity">
-          <div className="w-fit max-w-full rounded-2xl bg-popover p-4 sm:p-6 lg:my-12 dark:bg-card">
+          <div className="w-fit max-w-full rounded-2xl bg-popover p-4 sm:p-6 lg:mt-4 lg:mb-12 dark:bg-card">
             {gridData ? (
               <VerticalGrid segments={segments} data={gridData} weekStart={weekStart} divider={divider} />
             ) : (
@@ -418,7 +413,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
   // ── Horizontal: the original layout ──────────────────────────────────────
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 sm:py-12">
+    <main className="mx-auto w-full max-w-6xl px-4 pt-4 pb-8 sm:px-8 sm:pb-12">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           {eyebrow}

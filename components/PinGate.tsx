@@ -45,7 +45,7 @@ export function PinGate({ slug }: { slug: string }) {
   }
 
   return (
-    <main className="grid min-h-dvh place-items-center px-4">
+    <main className="grid flex-1 place-items-center px-4 pb-(--header-h)">
       <div className="w-full max-w-xs text-center">
         <div className="mx-auto grid size-11 place-items-center rounded-full bg-secondary text-secondary-foreground">
           <LockIcon className="size-5" />
