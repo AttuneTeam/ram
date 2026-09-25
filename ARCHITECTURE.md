@@ -107,6 +107,8 @@ npm run dev
   direct connection (`DATABASE_URL_UNPOOLED`). Preview builds skip them.
   Migrations are immutable once applied: add a new numbered file, and keep it additive.
 - Functions run in `syd1` (`vercel.json`), next to the database.
-- Vercel env: `DATABASE_URL` (Neon pooled), `DATABASE_URL_UNPOOLED` (from the Neon
-  integration), `ACCESS_COOKIE_SECRET`. All sensitive.
+- Vercel env: the Neon integration is connected with the prefix `DATABASE_URL`, so the
+  pooled string is `DATABASE_URL_DATABASE_URL` and the direct one `DATABASE_URL_UNPOOLED`.
+  `lib/db.ts` reads `DATABASE_URL_DATABASE_URL` first, then plain `DATABASE_URL` (local dev).
+  Plus `ACCESS_COOKIE_SECRET`. All sensitive.
 - GitHub secret (environment `production`): `VERCEL_DEPLOY_HOOK_URL`.

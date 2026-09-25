@@ -15,7 +15,13 @@ if (process.argv.includes("--production-only") && process.env.VERCEL_ENV !== "pr
   process.exit(0);
 }
 
-const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
+// Direct connection first (migrations shouldn't go through PgBouncer), then
+// the same pooled fallbacks as lib/db.ts. Empty values are skipped.
+const url = [
+  process.env.DATABASE_URL_UNPOOLED,
+  process.env.DATABASE_URL_DATABASE_URL,
+  process.env.DATABASE_URL,
+].find((v) => v && v.trim() !== "");
 if (!url) {
   console.error("DATABASE_URL is not set");
   process.exit(1);
