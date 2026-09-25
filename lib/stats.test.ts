@@ -5,7 +5,7 @@ const cat: Category = { id: "ex", name: "Exercise", color: "#3b6fd1", unit: "min
 
 let n = 0;
 function entry(day: string, quantity: number | null = null, categoryId = "ex"): Entry {
-  return { id: `e${n++}`, categoryId, day, description: "", quantity, createdAt: day };
+  return { id: `e${n++}`, categoryId, day, description: "", quantity, personId: null, createdAt: day };
 }
 
 describe("streaks", () => {

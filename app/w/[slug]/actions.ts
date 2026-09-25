@@ -8,6 +8,7 @@ import {
   MAX_PIN_ATTEMPTS,
   accessCookieName,
   accessToken,
+  generateSlug,
   hashPin,
   isValidPin,
   verifyPin,
@@ -16,18 +17,21 @@ import {
   AccessError,
   CATEGORY_COLUMNS,
   ENTRY_COLUMNS,
+  PERSON_COLUMNS,
   cookieSecret,
   findWorkspaceRow,
   requireWorkspace,
   toCategory,
   toEntry,
+  toPerson,
   toWorkspace,
   type CategoryRow,
   type EntryRow,
+  type PersonRow,
   type WorkspaceRow,
 } from "@/lib/workspace";
-import { categoryInput, entryInput, settingsInput } from "@/lib/validation";
-import { DEFAULT_SETTINGS, type Category, type Entry, type Workspace } from "@/lib/types";
+import { categoryInput, entryInput, personInput, settingsInput } from "@/lib/validation";
+import { DEFAULT_SETTINGS, type Category, type Entry, type Person, type Workspace } from "@/lib/types";
 
 /**
  * Actions return errors as values: Next.js masks thrown errors in production,
@@ -143,6 +147,80 @@ export async function updateSettings(
   });
 }
 
+// ── View-only link ─────────────────────────────────────────────────────────
+
+/**
+ * Create the read-only link, or replace it (the old one stops working).
+ * 20 chars ≈ 117 bits; longer than the edit slug so the two are never confused.
+ */
+export async function resetViewLink(slug: string): Promise<Result<Workspace>> {
+  return run(async () => {
+    const row = await requireWorkspace(slug);
+    const [updated] = await db()<WorkspaceRow[]>`
+      update workspaces set view_token = ${generateSlug(20)}
+      where id = ${row.id}
+      returning *`;
+    return toWorkspace(updated);
+  });
+}
+
+export async function disableViewLink(slug: string): Promise<Result<Workspace>> {
+  return run(async () => {
+    const row = await requireWorkspace(slug);
+    const [updated] = await db()<WorkspaceRow[]>`
+      update workspaces set view_token = null
+      where id = ${row.id}
+      returning *`;
+    return toWorkspace(updated);
+  });
+}
+
+// ── People ─────────────────────────────────────────────────────────────────
+
+function rethrowPerson(err: unknown): never {
+  if (pgCode(err) === UNIQUE_VIOLATION) throw new UserError("Someone with that name is already here");
+  throw err;
+}
+
+export async function createPerson(slug: string, input: { name: string }): Promise<Result<Person>> {
+  return run(async () => {
+    const row = await requireWorkspace(slug);
+    const { name } = parse(personInput, input);
+    const sql = db();
+    const [{ count }] = await sql<{ count: number }[]>`
+      select count(*)::int as count from people where workspace_id = ${row.id}`;
+    if (count >= 50) throw new UserError("50 people is the limit");
+    const [created] = await sql<PersonRow[]>`
+      insert into people (workspace_id, name, sort_order)
+      values (${row.id}, ${name}, ${count})
+      returning ${sql(PERSON_COLUMNS)}`.catch(rethrowPerson);
+    return toPerson(created);
+  });
+}
+
+export async function updatePerson(slug: string, id: string, input: { name: string }): Promise<Result<Person>> {
+  return run(async () => {
+    const row = await requireWorkspace(slug);
+    const { name } = parse(personInput, input);
+    const sql = db();
+    const [updated] = await sql<PersonRow[]>`
+      update people set name = ${name}
+      where id = ${checkId(id)}::uuid and workspace_id = ${row.id}
+      returning ${sql(PERSON_COLUMNS)}`.catch(rethrowPerson);
+    if (!updated) throw new UserError("That person no longer exists");
+    return toPerson(updated);
+  });
+}
+
+/** Removes the person. Their entries stay, just no longer attributed. */
+export async function deletePerson(slug: string, id: string): Promise<Result<null>> {
+  return run(async () => {
+    const row = await requireWorkspace(slug);
+    await db()`delete from people where id = ${checkId(id)}::uuid and workspace_id = ${row.id}`;
+    return null;
+  });
+}
+
 // ── Categories ─────────────────────────────────────────────────────────────
 
 function rethrowCategory(err: unknown): never {
@@ -200,13 +278,15 @@ export async function deleteCategory(slug: string, id: string): Promise<Result<n
 
 type EntryFields = {
   categoryId: string;
+  personId?: string | null;
   day: string;
   description?: string;
   quantity?: number | null;
 };
 
 function rethrowEntry(err: unknown): never {
-  if (pgCode(err) === FOREIGN_KEY_VIOLATION) throw new UserError("That category no longer exists");
+  // Composite FKs: the category or person was deleted, or belongs to another workspace.
+  if (pgCode(err) === FOREIGN_KEY_VIOLATION) throw new UserError("That category or person no longer exists");
   throw err;
 }
 
@@ -217,8 +297,8 @@ export async function createEntry(slug: string, input: EntryFields): Promise<Res
     const sql = db();
     // The composite FK rejects a category from another workspace.
     const [created] = await sql<EntryRow[]>`
-      insert into entries (workspace_id, category_id, day, description, quantity)
-      values (${row.id}, ${v.categoryId}, ${v.day}, ${v.description}, ${v.quantity})
+      insert into entries (workspace_id, category_id, person_id, day, description, quantity)
+      values (${row.id}, ${v.categoryId}, ${v.personId}, ${v.day}, ${v.description}, ${v.quantity})
       returning ${sql(ENTRY_COLUMNS)}`.catch(rethrowEntry);
     return toEntry(created);
   });
@@ -231,7 +311,7 @@ export async function updateEntry(slug: string, id: string, input: EntryFields):
     const sql = db();
     const [updated] = await sql<EntryRow[]>`
       update entries set
-        category_id = ${v.categoryId}, day = ${v.day},
+        category_id = ${v.categoryId}, person_id = ${v.personId}, day = ${v.day},
         description = ${v.description}, quantity = ${v.quantity}
       where id = ${checkId(id)}::uuid and workspace_id = ${row.id}
       returning ${sql(ENTRY_COLUMNS)}`.catch(rethrowEntry);

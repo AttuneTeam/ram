@@ -4,7 +4,8 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { addDays, longDayLabel, weekdayLabel, type IsoDay } from "@/lib/dates";
 import type { Divider, Segment } from "@/lib/grid";
 import { cellBackground, type DayCell } from "@/lib/intensity";
-import type { Category, Entry } from "@/lib/types";
+import { initials } from "@/lib/people";
+import type { Category, Entry, Person } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -12,6 +13,7 @@ type Props = {
   cells: Map<IsoDay, DayCell>;
   entriesByDay: Map<IsoDay, Entry[]>;
   categoriesById: Map<string, Category>;
+  peopleById: Map<string, Person>;
   /** Only entries in this category are listed in the tooltip, when set. */
   categoryId: string | null;
   today: IsoDay;
@@ -27,6 +29,7 @@ export function ActivityGrid({
   cells,
   entriesByDay,
   categoriesById,
+  peopleById,
   categoryId,
   today,
   weekStart,
@@ -158,6 +161,7 @@ export function ActivityGrid({
           hover={hover}
           entries={entriesByDay.get(hover.day) ?? []}
           categoriesById={categoriesById}
+          peopleById={peopleById}
           categoryId={categoryId}
           isFuture={hover.day > today}
         />
@@ -180,12 +184,14 @@ function DayTooltip({
   hover,
   entries,
   categoriesById,
+  peopleById,
   categoryId,
   isFuture,
 }: {
   hover: Hover;
   entries: Entry[];
   categoriesById: Map<string, Category>;
+  peopleById: Map<string, Person>;
   categoryId: string | null;
   isFuture: boolean;
 }) {
@@ -209,9 +215,15 @@ function DayTooltip({
         <ul className="mt-1 space-y-0.5">
           {shown.slice(0, 4).map((e) => {
             const cat = categoriesById.get(e.categoryId);
+            const author = e.personId ? peopleById.get(e.personId) : undefined;
             return (
               <li key={e.id} className="flex items-center gap-1.5">
                 <span className="size-2 shrink-0 rounded-full" style={{ background: cat?.color }} />
+                {author && (
+                  <span className="shrink-0 rounded-sm bg-background/20 px-1 text-[9px] font-semibold leading-tight">
+                    {initials(author.name)}
+                  </span>
+                )}
                 <span className="truncate">
                   {e.description || cat?.name}
                   {e.quantity != null && (

@@ -5,7 +5,8 @@ week, each square a day. You log what you did on a day under a category (Exercis
 each category has a colour, and the shade shows how much.
 
 There are no accounts. A **workspace** lives at `/w/<slug>` and is shared by sharing the link,
-optionally locked with a 4-digit PIN.
+optionally locked with a 4-digit PIN. A separate **view-only link** (`/v/<token>`) shows it without
+any way to edit. Workspaces can list **people** by name; entries record who logged them.
 
 ---
 
@@ -27,6 +28,9 @@ Mirrors Attune: Next.js 16 (App Router, Turbopack), React 19, Tailwind CSS v4, s
 | PINs are scrypt-hashed. 5 wrong attempts lock the workspace for 15 minutes. The counter is updated in one atomic statement, so parallel guesses can't get around it. | `unlockWorkspace` |
 | The access cookie is an HMAC over `slug + pin_hash`, so changing or removing the PIN invalidates every issued cookie. | `lib/security.ts` |
 | A locked workspace's name is not revealed in the page title or metadata. | `app/w/[slug]/page.tsx` |
+| The view link is its own 20-char secret (`view_token`). It bypasses the PIN (which guards editing), can be reset or turned off, and **never reveals the edit slug**: the view page gets `toReadOnlyWorkspace()`, with `slug` and `viewToken` blanked. Every action needs the edit slug, so the view page can't mutate anything. | `app/v/[token]/page.tsx`, `lib/workspace.ts` |
+| People are names, not accounts: anyone with the edit link can log as anyone. "Me" is a per-device default (`localStorage`), not an identity. | `lib/me.ts` |
+| An entry's person must belong to the same workspace (composite FK). Removing a person nulls only `person_id`, so their entries stay. | `db/migrations/002_people_and_view_links.sql` |
 
 Server actions return `{ ok, data } | { ok: false, error }` rather than throwing, because
 Next.js masks thrown errors in production and the UI needs the message.
@@ -40,7 +44,8 @@ app/
   page.tsx                  Landing + create-workspace form + "opened on this device"
   actions.ts                createWorkspace (seeds Exercise + Reading categories)
   w/[slug]/page.tsx         Loads workspace; renders PinGate or WorkspaceApp
-  w/[slug]/actions.ts       unlock, setPin, settings, category + entry CRUD
+  w/[slug]/actions.ts       unlock, setPin, settings, view link, people/category/entry CRUD
+  v/[token]/page.tsx        Read-only view (WorkspaceApp with readOnly)
 
 components/
   WorkspaceApp.tsx          Client state owner: filters, dialogs, optimistic updates
@@ -50,6 +55,9 @@ components/
   SettingsDialog.tsx        Name, dividers, week start, categories, PIN
   StatsSheet.tsx            Side drawer: streaks, done vs missed, monthly chart, table
   PinGate.tsx               4-digit PIN entry
+  ShareDialog.tsx           Edit link + view-only link (create / reset / turn off)
+  PersonDialog.tsx          Add / rename / remove a person
+  Avatar.tsx                Neutral initials avatar (colour stays reserved for categories)
 
 lib/
   dates.ts                  ISO-day helpers (UTC arithmetic, no TZ drift)
@@ -62,6 +70,8 @@ lib/
 
 db/migrations/              Plain SQL, applied in order by scripts/migrate.mjs
   palette.ts                Validated category swatches
+  people.ts                 initials()
+  me.ts                     Per-device "who am I" for the Logged-by picker
   useToday.ts               Viewer-local "today" (client only)
 ```
 
@@ -78,6 +88,8 @@ db/migrations/              Plain SQL, applied in order by scripts/migrate.mjs
 - **All:** the cell splits into equal vertical bands, one per category done that day, each in
   its own shade. Bands follow category order (so Exercise is always in the same place), capped
   at `MAX_BANDS` (4); the tooltip still lists everything. The legend switches to neutral grey.
+- **Person filter:** clicking an avatar narrows everything (grid, tooltips, stats) to that
+  person's entries. The grid keeps everyone's date range so it doesn't jump.
 - Colour is `color-mix()` of the category colour into `--cell-empty`, so it works in both themes.
   Several bands use a hard-stop `linear-gradient`.
 

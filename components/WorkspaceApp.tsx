@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3Icon, LinkIcon, MoonIcon, PlusIcon, Settings2Icon, SunIcon } from "lucide-react";
+import { BarChart3Icon, EyeIcon, LinkIcon, MoonIcon, PlusIcon, Settings2Icon, SunIcon, UserPlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { ActivityGrid } from "@/components/ActivityGrid";
+import { Avatar } from "@/components/Avatar";
 import { CategoryDialog } from "@/components/CategoryDialog";
 import { DayDialog } from "@/components/DayDialog";
+import { Hint } from "@/components/Hint";
+import { PersonDialog } from "@/components/PersonDialog";
 import { SettingsDialog } from "@/components/SettingsDialog";
+import { ShareDialog } from "@/components/ShareDialog";
 import { StatsSheet } from "@/components/StatsSheet";
 import { useTheme } from "@/components/ThemeProvider";
 import { Button } from "@/components/ui/button";
@@ -14,61 +18,80 @@ import { rememberWorkspace } from "@/lib/recent";
 import { buildGrid, gridStart } from "@/lib/grid";
 import { cellBackground, shade, shadeDays } from "@/lib/intensity";
 import type { IsoDay } from "@/lib/dates";
-import type { Category, Entry, Workspace } from "@/lib/types";
+import { useMe } from "@/lib/me";
+import type { Category, Entry, Person, Workspace } from "@/lib/types";
 import { useToday } from "@/lib/useToday";
 import { cn } from "@/lib/utils";
 
 type Props = {
   workspace: Workspace;
   categories: Category[];
+  people: Person[];
   entries: Entry[];
-  isNew: boolean;
+  isNew?: boolean;
+  /** Opened through the view-only link: no editing, and no edit slug in `workspace`. */
+  readOnly?: boolean;
 };
 
-export function WorkspaceApp(props: Props) {
+export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Props) {
   const today = useToday();
   const { theme, toggleTheme } = useTheme();
 
   const [workspace, setWorkspace] = useState(props.workspace);
   const [categories, setCategories] = useState(props.categories);
+  const [people, setPeople] = useState(props.people);
   const [entries, setEntries] = useState(props.entries);
   const [filter, setFilter] = useState<string | null>(null);
+  const [personFilter, setPersonFilter] = useState<string | null>(null);
   const [openDay, setOpenDay] = useState<IsoDay | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null | undefined>(undefined);
+  const [editingPerson, setEditingPerson] = useState<Person | null | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [me, setMe] = useMe(workspace.slug);
 
   useEffect(() => {
-    rememberWorkspace(workspace.slug, workspace.name);
-  }, [workspace.slug, workspace.name]);
+    // The view link doesn't carry the edit slug, so there's nothing to remember.
+    if (!readOnly) rememberWorkspace(workspace.slug, workspace.name);
+  }, [readOnly, workspace.slug, workspace.name]);
 
   const welcomed = useRef(false);
   useEffect(() => {
-    if (!props.isNew || welcomed.current) return;
+    if (!isNew || welcomed.current) return;
     welcomed.current = true;
     toast.success("Your workspace is ready", {
       description: "Bookmark this page — the link is the only way back in.",
       duration: 8000,
     });
     window.history.replaceState(null, "", `/w/${workspace.slug}`);
-  }, [props.isNew, workspace.slug]);
+  }, [isNew, workspace.slug]);
 
   const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+  const peopleById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
+
+  // Picking a person narrows everything below — grid, tooltips, stats — to their entries.
+  const visibleEntries = useMemo(
+    () => (personFilter ? entries.filter((e) => e.personId === personFilter) : entries),
+    [entries, personFilter],
+  );
+
   const entriesByDay = useMemo(() => {
     const map = new Map<IsoDay, Entry[]>();
-    for (const e of entries) {
+    for (const e of visibleEntries) {
       const list = map.get(e.day) ?? [];
       list.push(e);
       map.set(e.day, list);
     }
     return map;
-  }, [entries]);
+  }, [visibleEntries]);
 
-  const cells = useMemo(() => shadeDays(entries, categories, filter), [entries, categories, filter]);
+  const cells = useMemo(() => shadeDays(visibleEntries, categories, filter), [visibleEntries, categories, filter]);
 
   const { divider, weekStart } = workspace.settings;
   const segments = useMemo(() => {
     if (!today) return [];
+    // Span everyone's history, so switching person doesn't change the grid's width.
     const earliest = entries[0]?.day ?? null; // entries arrive sorted by day
     return buildGrid({ from: gridStart(today, earliest), to: today, weekStart, divider });
   }, [today, entries, weekStart, divider]);
@@ -81,22 +104,9 @@ export function WorkspaceApp(props: Props) {
   }, [cells, today, segments.length]);
 
   const filterCategory = filter ? categoriesById.get(filter) : null;
+  const filterPerson = personFilter ? peopleById.get(personFilter) : null;
   // "All" mixes category colours per cell, so its legend shows intensity in neutral grey.
   const legendColor = filterCategory?.color ?? "var(--muted-foreground)";
-
-  async function copyLink() {
-    const url = `${window.location.origin}/w/${workspace.slug}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Link copied", {
-        description: workspace.hasPin
-          ? "They'll need your PIN to open it."
-          : "Anyone with this link can view and edit. Add a PIN in settings to lock it.",
-      });
-    } catch {
-      toast(url);
-    }
-  }
 
   function upsertEntry(entry: Entry) {
     setEntries((prev) => {
@@ -120,26 +130,114 @@ export function WorkspaceApp(props: Props) {
     if (filter === id) setFilter(null);
   }
 
+  function upsertPerson(person: Person) {
+    setPeople((prev) =>
+      prev.some((p) => p.id === person.id) ? prev.map((p) => (p.id === person.id ? person : p)) : [...prev, person],
+    );
+  }
+
+  function removePerson(id: string) {
+    setPeople((prev) => prev.filter((p) => p.id !== id));
+    // The database keeps their entries and clears the attribution; mirror that.
+    setEntries((prev) => prev.map((e) => (e.personId === id ? { ...e, personId: null } : e)));
+    if (personFilter === id) setPersonFilter(null);
+    if (me === id) setMe(null);
+  }
+
+  let summary = `${loggedDays} day${loggedDays === 1 ? "" : "s"} with ${filterCategory ? filterCategory.name.toLowerCase() : "something logged"}`;
+  if (filterPerson) summary += ` by ${filterPerson.name.split(/\s+/)[0]}`;
+
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 sm:py-12">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Ram</p>
+          <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Ram
+            {readOnly && (
+              <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10px] tracking-normal normal-case text-secondary-foreground">
+                <EyeIcon className="size-3" /> View only
+              </span>
+            )}
+          </p>
           <h1 className="truncate text-3xl font-semibold tracking-tight sm:text-4xl">{workspace.name}</h1>
+          {(people.length > 0 || !readOnly) && (
+            <div className="mt-3 flex flex-wrap items-center gap-1" aria-label="Filter by person" role="group">
+              {people.map((p) => (
+                <Hint
+                  key={p.id}
+                  label={
+                    personFilter === p.id ? (
+                      <>
+                        Showing {p.name}
+                        <span className="block opacity-70">Click to show everyone</span>
+                      </>
+                    ) : (
+                      `Show only ${p.name}`
+                    )
+                  }
+                >
+                  <button
+                    type="button"
+                    aria-pressed={personFilter === p.id}
+                    aria-label={`Show only ${p.name}`}
+                    onClick={() => setPersonFilter(personFilter === p.id ? null : p.id)}
+                    className={cn(
+                      "rounded-full outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-ring",
+                      personFilter && personFilter !== p.id && "opacity-40 hover:opacity-80",
+                      personFilter === p.id && "ring-2 ring-ring ring-offset-2 ring-offset-background",
+                    )}
+                  >
+                    <Avatar person={p} title={null} />
+                  </button>
+                </Hint>
+              ))}
+              {!readOnly &&
+                (people.length === 0 ? (
+                  <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setEditingPerson(null)}>
+                    <UserPlusIcon /> Add people
+                  </Button>
+                ) : (
+                  <Hint label="Add a person">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-full text-muted-foreground"
+                      aria-label="Add a person"
+                      onClick={() => setEditingPerson(null)}
+                    >
+                      <PlusIcon />
+                    </Button>
+                  </Hint>
+                ))}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={copyLink}>
-            <LinkIcon /> Share
-          </Button>
+          {!readOnly && (
+            <Button variant="ghost" size="sm" onClick={() => setShareOpen(true)}>
+              <LinkIcon /> Share
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={() => setStatsOpen(true)}>
             <BarChart3Icon /> Stats
           </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
-            <Settings2Icon />
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Toggle theme" onClick={toggleTheme}>
-            {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-          </Button>
+          {!readOnly && (
+            <Hint label="Settings">
+              <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
+                <Settings2Icon />
+              </Button>
+            </Hint>
+          )}
+          <Hint label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              onClick={toggleTheme}
+            >
+              {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+            </Button>
+          </Hint>
         </div>
       </header>
 
@@ -153,9 +251,11 @@ export function WorkspaceApp(props: Props) {
             {c.name}
           </Chip>
         ))}
-        <Button variant="ghost" size="sm" className="rounded-full text-muted-foreground" onClick={() => setEditingCategory(null)}>
-          <PlusIcon /> Category
-        </Button>
+        {!readOnly && (
+          <Button variant="ghost" size="sm" className="rounded-full text-muted-foreground" onClick={() => setEditingCategory(null)}>
+            <PlusIcon /> Category
+          </Button>
+        )}
       </nav>
 
       <section className="mt-4 rounded-2xl bg-popover p-4 sm:p-6 dark:bg-card">
@@ -165,6 +265,7 @@ export function WorkspaceApp(props: Props) {
             cells={cells}
             entriesByDay={entriesByDay}
             categoriesById={categoriesById}
+            peopleById={peopleById}
             categoryId={filter}
             today={today}
             weekStart={weekStart}
@@ -176,18 +277,12 @@ export function WorkspaceApp(props: Props) {
         )}
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span>
-            {loggedDays} day{loggedDays === 1 ? "" : "s"} with {filterCategory ? filterCategory.name.toLowerCase() : "something logged"}
-          </span>
+          <span>{summary}</span>
           <span className="flex items-center gap-1" aria-hidden>
             Less
             <span className="size-3 rounded-[3px]" style={{ background: cellBackground(undefined) }} />
             {([1, 2, 3, 4] as const).map((l) => (
-              <span
-                key={l}
-                className="size-3 rounded-[3px]"
-                style={{ background: shade(legendColor, l) }}
-              />
+              <span key={l} className="size-3 rounded-[3px]" style={{ background: shade(legendColor, l) }} />
             ))}
             More
           </span>
@@ -195,7 +290,9 @@ export function WorkspaceApp(props: Props) {
       </section>
 
       <p className="mt-4 hidden text-xs text-muted-foreground sm:block">
-        Click any day to log what you did. Arrow keys move between days.
+        {readOnly
+          ? "Click any day to see what was logged. Arrow keys move between days."
+          : "Click any day to log what you did. Arrow keys move between days."}
       </p>
 
       <DayDialog
@@ -203,38 +300,61 @@ export function WorkspaceApp(props: Props) {
         day={openDay}
         entries={openDay ? (entriesByDay.get(openDay) ?? []) : []}
         categories={categories}
+        people={people}
+        me={me}
+        onPickMe={setMe}
         defaultCategoryId={filter}
+        readOnly={readOnly}
         onClose={() => setOpenDay(null)}
         onSaved={upsertEntry}
         onDeleted={(id) => setEntries((prev) => prev.filter((e) => e.id !== id))}
         onNewCategory={() => setEditingCategory(null)}
-      />
-      <CategoryDialog
-        slug={workspace.slug}
-        category={editingCategory}
-        usedColors={categories.map((c) => c.color)}
-        onClose={() => setEditingCategory(undefined)}
-        onSaved={upsertCategory}
-        onDeleted={removeCategory}
-      />
-      <SettingsDialog
-        open={settingsOpen}
-        workspace={workspace}
-        categories={categories}
-        onClose={() => setSettingsOpen(false)}
-        onWorkspaceChange={setWorkspace}
-        onEditCategory={setEditingCategory}
       />
       {today && (
         <StatsSheet
           open={statsOpen}
           onClose={() => setStatsOpen(false)}
           categories={categories}
-          entries={entries}
+          entries={visibleEntries}
           today={today}
           weekStart={weekStart}
           initialCategoryId={filter}
         />
+      )}
+      {!readOnly && (
+        <>
+          <CategoryDialog
+            slug={workspace.slug}
+            category={editingCategory}
+            usedColors={categories.map((c) => c.color)}
+            onClose={() => setEditingCategory(undefined)}
+            onSaved={upsertCategory}
+            onDeleted={removeCategory}
+          />
+          <PersonDialog
+            slug={workspace.slug}
+            person={editingPerson}
+            onClose={() => setEditingPerson(undefined)}
+            onSaved={upsertPerson}
+            onDeleted={removePerson}
+          />
+          <SettingsDialog
+            open={settingsOpen}
+            workspace={workspace}
+            categories={categories}
+            people={people}
+            onClose={() => setSettingsOpen(false)}
+            onWorkspaceChange={setWorkspace}
+            onEditCategory={setEditingCategory}
+            onEditPerson={setEditingPerson}
+          />
+          <ShareDialog
+            open={shareOpen}
+            workspace={workspace}
+            onClose={() => setShareOpen(false)}
+            onWorkspaceChange={setWorkspace}
+          />
+        </>
       )}
     </main>
   );
