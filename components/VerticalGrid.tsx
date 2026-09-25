@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import { addDays, weekdayLabel, type IsoDay } from "@/lib/dates";
+import { addDays, weekdayLabel } from "@/lib/dates";
 import { newestFirst, verticalMonthLabels, type Divider, type Segment } from "@/lib/grid";
 import { cn } from "@/lib/utils";
-import { CELL_VARS, DayButton, DayTooltip, scopedEntries, useDayHover, type GridData } from "./grid/shared";
+import { CELL_VARS, DayButton, DayTooltip, useDayHover, type GridData } from "./grid/shared";
 
 type Props = {
   segments: Segment[];
@@ -89,7 +89,6 @@ export function VerticalGrid({ segments, data, weekStart, divider }: Props) {
                     ),
                   )}
                 </div>
-                <WeekNotes days={week.days} data={data} />
               </div>
             ))}
           </div>
@@ -97,33 +96,6 @@ export function VerticalGrid({ segments, data, weekStart, divider }: Props) {
       </div>
 
       <DayTooltip hover={hover} data={data} />
-    </div>
-  );
-}
-
-/**
- * What was logged that week, in day order, on one line beside the squares.
- * The squares show consistency; this shows what it actually was.
- */
-function WeekNotes({ days, data }: { days: (IsoDay | null)[]; data: GridData }) {
-  const entries = days.flatMap((d) => (d ? scopedEntries(data.entriesByDay.get(d), data.categoryId) : []));
-  if (entries.length === 0) return <div className="min-w-0 flex-1" />;
-
-  const text = entries.map((e) => e.description || data.categoriesById.get(e.categoryId)?.name || "").join(" · ");
-  return (
-    <div
-      className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-xs text-muted-foreground [mask-image:linear-gradient(to_right,black_85%,transparent)]"
-      title={text}
-    >
-      {entries.slice(0, 12).map((e, i) => {
-        const cat = data.categoriesById.get(e.categoryId);
-        return (
-          <span key={e.id} className={cn("flex min-w-0 shrink-0 items-center gap-1", i > 0 && "before:mr-0.5 before:content-['·']")}>
-            <span className="size-1.5 shrink-0 rounded-full" style={{ background: cat?.color }} aria-hidden />
-            <span className="whitespace-nowrap">{e.description || cat?.name}</span>
-          </span>
-        );
-      })}
     </div>
   );
 }

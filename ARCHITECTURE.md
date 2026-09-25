@@ -50,7 +50,7 @@ app/
 components/
   WorkspaceApp.tsx          Client state owner: filters, dialogs, optimistic updates
   ActivityGrid.tsx          Horizontal view: weeks as columns, scrolls sideways, opens on today
-  VerticalGrid.tsx          Vertical view: weeks as rows, newest on top, week notes beside each row
+  VerticalGrid.tsx          Vertical view: weeks as rows, newest on top
   grid/shared.tsx           What both views share: day button, delegated tooltip, cell sizes
   DayDialog.tsx             Log / edit / delete entries for a day
   CategoryDialog.tsx        Create / edit / delete a category (name, colour, unit)
@@ -107,7 +107,7 @@ screens horizontal. Both views draw the same `buildGrid()` output.
   desktop it has a sidebar (title, people, actions, filters, legend) and a right pane that
   scrolls on its own. On phones the sidebar stacks above. Month labels come from
   `verticalMonthLabels()`, which puts each label on the month's *newest* week, the first row
-  you meet reading down. Each row carries the week's notes, since the 7-wide grid leaves room.
+  you meet reading down.
 - The pane has no vertical padding of its own. Sticky elements pin to the scroll container's
   padding edge, so padding there leaves a gap above the sticky weekday header.
 - Orientation is unknown until hydration, so the page renders empty for a moment rather than

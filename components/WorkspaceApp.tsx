@@ -402,7 +402,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
             scroll container's padding edge, so padding here would leave a gap
             above the weekday header for rows to show through. */}
         <section className="px-4 pb-8 sm:px-8 lg:overflow-y-auto lg:pb-0 lg:pl-4" aria-label="Activity">
-          <div className="rounded-2xl bg-popover p-4 sm:p-6 lg:my-12 dark:bg-card">
+          <div className="w-fit max-w-full rounded-2xl bg-popover p-4 sm:p-6 lg:my-12 dark:bg-card">
             {gridData ? (
               <VerticalGrid segments={segments} data={gridData} weekStart={weekStart} divider={divider} />
             ) : (
