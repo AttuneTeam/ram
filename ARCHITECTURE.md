@@ -100,9 +100,13 @@ npm run dev
 
 ## Deploy
 
-- `main` → GitHub Action runs `scripts/migrate.mjs` against Neon, then triggers the Vercel
-  deploy hook (Vercel's own git deploys are disabled in `vercel.json`, same as Attune).
+- `main` → GitHub Action (`deploy.yml`) triggers the Vercel deploy hook. Vercel's own git
+  deploys are disabled in `vercel.json`, same as Attune.
+- The production build runs `vercel-build`: `scripts/migrate.mjs --production-only`, then
+  `next build`. Migrations therefore apply before the new code goes live, using Neon's
+  direct connection (`DATABASE_URL_UNPOOLED`). Preview builds skip them.
   Migrations are immutable once applied: add a new numbered file, and keep it additive.
-- Vercel env: `DATABASE_URL` (Neon **pooled** string), `ACCESS_COOKIE_SECRET`.
-- GitHub secrets (environment `production`): `DATABASE_URL_UNPOOLED` (Neon direct string),
-  `VERCEL_DEPLOY_HOOK_URL`.
+- Functions run in `syd1` (`vercel.json`), next to the database.
+- Vercel env: `DATABASE_URL` (Neon pooled), `DATABASE_URL_UNPOOLED` (from the Neon
+  integration), `ACCESS_COOKIE_SECRET`. All sensitive.
+- GitHub secret (environment `production`): `VERCEL_DEPLOY_HOOK_URL`.

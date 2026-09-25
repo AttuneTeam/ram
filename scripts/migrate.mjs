@@ -3,10 +3,17 @@
 //
 //   DATABASE_URL=... node scripts/migrate.mjs
 //
-// Use Neon's direct (non-pooled) connection string here.
+// On Vercel this runs as part of `vercel-build` with --production-only, so
+// preview builds never touch the production database. It prefers Neon's
+// direct connection (DATABASE_URL_UNPOOLED) over the pooled one.
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
+
+if (process.argv.includes("--production-only") && process.env.VERCEL_ENV !== "production") {
+  console.log(`migrations skipped (VERCEL_ENV=${process.env.VERCEL_ENV ?? "unset"})`);
+  process.exit(0);
+}
 
 const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 if (!url) {

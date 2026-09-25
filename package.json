@@ -12,7 +12,8 @@
     "check": "npm run lint && tsc --noEmit && npm test",
     "db:up": "docker compose up -d",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
-    "db:reset": "docker compose down -v && docker compose up -d && sleep 2 && npm run db:migrate"
+    "db:reset": "docker compose down -v && docker compose up -d && sleep 2 && npm run db:migrate",
+    "vercel-build": "node scripts/migrate.mjs --production-only && next build"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
