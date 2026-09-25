@@ -56,7 +56,7 @@ export function StatsSheet({ open, onClose, categories, entries, today, weekStar
                   onClick={() => setPicked(c.id)}
                   className={cn(
                     "flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-muted-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    c.id === categoryId ? "bg-secondary text-secondary-foreground" : "hover:bg-accent",
+                    c.id === categoryId ? "bg-secondary text-secondary-foreground" : "hover:bg-hover",
                   )}
                 >
                   <span className="size-2 rounded-full" style={{ background: c.color }} />
@@ -67,7 +67,7 @@ export function StatsSheet({ open, onClose, categories, entries, today, weekStar
 
             {stats && category && (
               <>
-                <div className="rounded-2xl bg-accent/60 p-5">
+                <div className="rounded-2xl bg-well p-5">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <FlameIcon className="size-3.5" /> Current streak
                   </div>
@@ -137,7 +137,7 @@ export function StatsSheet({ open, onClose, categories, entries, today, weekStar
 
 function Tile({ label, value, hint, small }: { label: string; value: number | string; hint?: string; small?: boolean }) {
   return (
-    <div className="rounded-xl bg-accent/60 px-3.5 py-3">
+    <div className="rounded-xl bg-well px-3.5 py-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={cn("font-semibold tracking-tight", small ? "text-lg" : "text-2xl")}>{value}</div>
       {hint && <div className="text-[11px] text-muted-foreground">{hint}</div>}

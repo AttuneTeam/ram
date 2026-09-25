@@ -139,7 +139,7 @@ function DayBody({
             return (
               <li
                 key={entry.id}
-                className="group flex items-center gap-3 rounded-lg bg-accent/60 px-3 py-2 data-[editing=true]:ring-2 data-[editing=true]:ring-ring/40"
+                className="group flex items-center gap-3 rounded-lg bg-well px-3 py-2 data-[editing=true]:ring-2 data-[editing=true]:ring-ring/40"
                 data-editing={editing?.id === entry.id}
               >
                 <span className="size-2.5 shrink-0 rounded-full" style={{ background: cat?.color }} />
@@ -173,7 +173,7 @@ function DayBody({
       )}
 
       {readOnly ? null : categories.length === 0 ? (
-        <div className="rounded-lg bg-accent/60 p-4 text-sm">
+        <div className="rounded-lg bg-well p-4 text-sm">
           <p className="text-muted-foreground">Create a category first — like “Exercise” or “Reading”.</p>
           <Button className="mt-3" size="sm" onClick={onNewCategory}>
             <PlusIcon /> New category
@@ -194,7 +194,7 @@ function DayBody({
                     onClick={() => setPersonId(p.id)}
                     className={cn(
                       "flex items-center gap-1.5 rounded-full py-0.5 pr-2.5 pl-0.5 text-sm text-muted-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      personId === p.id ? "bg-secondary text-secondary-foreground ring-2 ring-ring/40" : "hover:bg-accent",
+                      personId === p.id ? "bg-secondary text-secondary-foreground ring-2 ring-ring/40" : "hover:bg-hover",
                     )}
                   >
                     <Avatar person={p} size="sm" className={personId === p.id ? "bg-background" : undefined} />

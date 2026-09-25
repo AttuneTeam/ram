@@ -458,7 +458,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       onClick={onClick}
       className={cn(
         "flex h-7 items-center gap-1.5 rounded-full px-3 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-accent",
+        active ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-hover",
       )}
     >
       {children}

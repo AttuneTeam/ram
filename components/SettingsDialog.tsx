@@ -124,7 +124,7 @@ export function SettingsDialog({
           </div>
           <ul className="space-y-1">
             {categories.map((c) => (
-              <li key={c.id} className="flex items-center gap-2.5 rounded-lg bg-accent/60 py-1.5 pl-3 pr-1.5 text-sm">
+              <li key={c.id} className="flex items-center gap-2.5 rounded-lg bg-well py-1.5 pl-3 pr-1.5 text-sm">
                 <span className="size-2.5 rounded-full" style={{ background: c.color }} />
                 <span className="flex-1 truncate">{c.name}</span>
                 {c.unit && <span className="text-xs text-muted-foreground">{c.unit}</span>}
@@ -152,7 +152,7 @@ export function SettingsDialog({
           ) : (
             <ul className="space-y-1">
               {people.map((p) => (
-                <li key={p.id} className="flex items-center gap-2.5 rounded-lg bg-accent/60 py-1 pl-1.5 pr-1.5 text-sm">
+                <li key={p.id} className="flex items-center gap-2.5 rounded-lg bg-well py-1 pl-1.5 pr-1.5 text-sm">
                   <Avatar person={p} size="sm" />
                   <span className="flex-1 truncate">{p.name}</span>
                   <Hint label={`Edit ${p.name}`} side="left">
@@ -223,7 +223,7 @@ function Segmented<T extends string | number>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div role="radiogroup" className="inline-flex rounded-lg bg-accent p-0.5">
+    <div role="radiogroup" className="inline-flex rounded-lg bg-well p-0.5">
       {options.map((o) => (
         <button
           key={String(o.value)}
@@ -233,7 +233,7 @@ function Segmented<T extends string | number>({
           onClick={() => value !== o.value && onChange(o.value)}
           className={cn(
             "rounded-md px-3 py-1 text-sm text-muted-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            value === o.value && "bg-popover text-foreground shadow-sm",
+            value === o.value && "bg-popover text-foreground shadow-sm dark:bg-input",
           )}
         >
           {o.label}
