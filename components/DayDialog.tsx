@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar } from "@/components/Avatar";
+import { Hint } from "@/components/Hint";
 import { longDayLabel, type IsoDay } from "@/lib/dates";
 import type { Category, Entry, Person } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -153,12 +154,16 @@ function DayBody({
                 {author && <Avatar person={author} size="sm" />}
                 {!readOnly && (
                   <>
-                    <Button variant="ghost" size="icon-sm" aria-label="Edit entry" onClick={() => startEdit(entry)} disabled={pending}>
-                      <PencilIcon />
-                    </Button>
-                    <Button variant="ghost" size="icon-sm" aria-label="Delete entry" onClick={() => remove(entry)} disabled={pending}>
-                      <Trash2Icon />
-                    </Button>
+                    <Hint label="Edit">
+                      <Button variant="ghost" size="icon-sm" aria-label="Edit entry" onClick={() => startEdit(entry)} disabled={pending}>
+                        <PencilIcon />
+                      </Button>
+                    </Hint>
+                    <Hint label="Delete">
+                      <Button variant="ghost" size="icon-sm" aria-label="Delete entry" onClick={() => remove(entry)} disabled={pending}>
+                        <Trash2Icon />
+                      </Button>
+                    </Hint>
                   </>
                 )}
               </li>

@@ -5,6 +5,7 @@ import { LockIcon, PencilIcon, PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { setPin, updateSettings } from "@/app/w/[slug]/actions";
 import { Avatar } from "@/components/Avatar";
+import { Hint } from "@/components/Hint";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -127,9 +128,11 @@ export function SettingsDialog({
                 <span className="size-2.5 rounded-full" style={{ background: c.color }} />
                 <span className="flex-1 truncate">{c.name}</span>
                 {c.unit && <span className="text-xs text-muted-foreground">{c.unit}</span>}
-                <Button variant="ghost" size="icon-xs" aria-label={`Edit ${c.name}`} onClick={() => onEditCategory(c)}>
-                  <PencilIcon />
-                </Button>
+                <Hint label={`Edit ${c.name}`} side="left">
+                  <Button variant="ghost" size="icon-xs" aria-label={`Edit ${c.name}`} onClick={() => onEditCategory(c)}>
+                    <PencilIcon />
+                  </Button>
+                </Hint>
               </li>
             ))}
           </ul>
@@ -152,9 +155,11 @@ export function SettingsDialog({
                 <li key={p.id} className="flex items-center gap-2.5 rounded-lg bg-accent/60 py-1 pl-1.5 pr-1.5 text-sm">
                   <Avatar person={p} size="sm" />
                   <span className="flex-1 truncate">{p.name}</span>
-                  <Button variant="ghost" size="icon-xs" aria-label={`Edit ${p.name}`} onClick={() => onEditPerson(p)}>
-                    <PencilIcon />
-                  </Button>
+                  <Hint label={`Edit ${p.name}`} side="left">
+                    <Button variant="ghost" size="icon-xs" aria-label={`Edit ${p.name}`} onClick={() => onEditPerson(p)}>
+                      <PencilIcon />
+                    </Button>
+                  </Hint>
                 </li>
               ))}
             </ul>

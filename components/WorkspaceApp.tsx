@@ -7,6 +7,7 @@ import { ActivityGrid } from "@/components/ActivityGrid";
 import { Avatar } from "@/components/Avatar";
 import { CategoryDialog } from "@/components/CategoryDialog";
 import { DayDialog } from "@/components/DayDialog";
+import { Hint } from "@/components/Hint";
 import { PersonDialog } from "@/components/PersonDialog";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { ShareDialog } from "@/components/ShareDialog";
@@ -162,21 +163,33 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
           {(people.length > 0 || !readOnly) && (
             <div className="mt-3 flex flex-wrap items-center gap-1" aria-label="Filter by person" role="group">
               {people.map((p) => (
-                <button
+                <Hint
                   key={p.id}
-                  type="button"
-                  aria-pressed={personFilter === p.id}
-                  aria-label={`Show only ${p.name}`}
-                  title={personFilter === p.id ? `Showing ${p.name} — click to show everyone` : `Show only ${p.name}`}
-                  onClick={() => setPersonFilter(personFilter === p.id ? null : p.id)}
-                  className={cn(
-                    "rounded-full outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-ring",
-                    personFilter && personFilter !== p.id && "opacity-40 hover:opacity-80",
-                    personFilter === p.id && "ring-2 ring-ring ring-offset-2 ring-offset-background",
-                  )}
+                  label={
+                    personFilter === p.id ? (
+                      <>
+                        Showing {p.name}
+                        <span className="block opacity-70">Click to show everyone</span>
+                      </>
+                    ) : (
+                      `Show only ${p.name}`
+                    )
+                  }
                 >
-                  <Avatar person={p} title={null} />
-                </button>
+                  <button
+                    type="button"
+                    aria-pressed={personFilter === p.id}
+                    aria-label={`Show only ${p.name}`}
+                    onClick={() => setPersonFilter(personFilter === p.id ? null : p.id)}
+                    className={cn(
+                      "rounded-full outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-ring",
+                      personFilter && personFilter !== p.id && "opacity-40 hover:opacity-80",
+                      personFilter === p.id && "ring-2 ring-ring ring-offset-2 ring-offset-background",
+                    )}
+                  >
+                    <Avatar person={p} title={null} />
+                  </button>
+                </Hint>
               ))}
               {!readOnly &&
                 (people.length === 0 ? (
@@ -184,15 +197,17 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
                     <UserPlusIcon /> Add people
                   </Button>
                 ) : (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="rounded-full text-muted-foreground"
-                    aria-label="Add a person"
-                    onClick={() => setEditingPerson(null)}
-                  >
-                    <PlusIcon />
-                  </Button>
+                  <Hint label="Add a person">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-full text-muted-foreground"
+                      aria-label="Add a person"
+                      onClick={() => setEditingPerson(null)}
+                    >
+                      <PlusIcon />
+                    </Button>
+                  </Hint>
                 ))}
             </div>
           )}
@@ -207,13 +222,22 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
             <BarChart3Icon /> Stats
           </Button>
           {!readOnly && (
-            <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
-              <Settings2Icon />
-            </Button>
+            <Hint label="Settings">
+              <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
+                <Settings2Icon />
+              </Button>
+            </Hint>
           )}
-          <Button variant="ghost" size="icon-sm" aria-label="Toggle theme" onClick={toggleTheme}>
-            {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-          </Button>
+          <Hint label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              onClick={toggleTheme}
+            >
+              {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+            </Button>
+          </Hint>
         </div>
       </header>
 
