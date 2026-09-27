@@ -272,16 +272,19 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
           </Button>
         </Hint>
       )}
-      <Hint label={`Switch to ${nextOrientation} view`}>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Switch to ${nextOrientation} view`}
-          onClick={() => setOrientation(nextOrientation)}
-        >
-          {orientation === "vertical" ? <Columns3Icon /> : <Rows3Icon />}
-        </Button>
-      </Hint>
+      {/* Editors switch layout in Settings; the view link has no Settings, so it keeps this. */}
+      {readOnly && (
+        <Hint label={`Switch to ${nextOrientation} view`}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Switch to ${nextOrientation} view`}
+            onClick={() => setOrientation(nextOrientation)}
+          >
+            {orientation === "vertical" ? <Columns3Icon /> : <Rows3Icon />}
+          </Button>
+        </Hint>
+      )}
       <Hint label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
         <Button
           variant="ghost"
@@ -403,6 +406,8 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
             workspace={workspace}
             categories={categories}
             people={people}
+            orientation={orientation ?? "horizontal"}
+            onOrientationChange={setOrientation}
             onClose={() => setSettingsOpen(false)}
             onWorkspaceChange={setWorkspace}
             onEditCategory={setEditingCategory}
