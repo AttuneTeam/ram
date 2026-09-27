@@ -127,8 +127,8 @@ export function LibrarySheet(props: Props) {
                     .flatMap((id) => peopleById.get(id)?.name.split(/\s+/)[0] ?? []);
                   const times = item.entries.length;
                   return (
-                    <li key={item.link.id} className="rounded-xl bg-well">
-                      <LinkCard link={item.link} className="bg-transparent" />
+                    <li key={item.link.id} className="rounded-md bg-well">
+                      <LinkCard link={item.link} className="rounded-md bg-transparent" />
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 pb-2 text-xs text-muted-foreground">
                         <span className="flex shrink-0 -space-x-0.5">
                           {cats.map((c) => (
