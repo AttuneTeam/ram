@@ -46,5 +46,18 @@ export type Entry = {
   quantity: number | null;
   /** Who logged it; null when not attributed. */
   personId: string | null;
+  /** The video or page it was done to, if any. */
+  linkId: string | null;
   createdAt: string;
+};
+
+/** A web link attached to entries, with a preview. Together they're the library. */
+export type Link = {
+  id: string;
+  url: string;
+  kind: "video" | "page";
+  title: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  siteName: string | null;
 };

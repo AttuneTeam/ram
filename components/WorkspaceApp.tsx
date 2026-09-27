@@ -5,6 +5,7 @@ import {
   BarChart3Icon,
   Columns3Icon,
   EyeIcon,
+  LibraryIcon,
   LinkIcon,
   MoonIcon,
   PlusIcon,
@@ -18,8 +19,10 @@ import { ActivityGrid } from "@/components/ActivityGrid";
 import type { GridData } from "@/components/grid/shared";
 import { Avatar } from "@/components/Avatar";
 import { CategoryDialog } from "@/components/CategoryDialog";
-import { DayDialog } from "@/components/DayDialog";
+import type { SavedEntry } from "@/app/w/[slug]/actions";
+import { DayDialog, type DayPrefill } from "@/components/DayDialog";
 import { Hint } from "@/components/Hint";
+import { LibrarySheet } from "@/components/LibrarySheet";
 import { PersonDialog } from "@/components/PersonDialog";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { ShareDialog } from "@/components/ShareDialog";
@@ -33,7 +36,8 @@ import { cellBackground, shade, shadeDays } from "@/lib/intensity";
 import type { IsoDay } from "@/lib/dates";
 import { useMe } from "@/lib/me";
 import { useOrientation } from "@/lib/orientation";
-import type { Category, Entry, Person, Workspace } from "@/lib/types";
+import type { LibraryItem } from "@/lib/links";
+import type { Category, Entry, Link, Person, Workspace } from "@/lib/types";
 import { useToday } from "@/lib/useToday";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +46,7 @@ type Props = {
   categories: Category[];
   people: Person[];
   entries: Entry[];
+  links: Link[];
   isNew?: boolean;
   /** Opened through the view-only link: no editing, and no edit slug in `workspace`. */
   readOnly?: boolean;
@@ -55,14 +60,17 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
   const [categories, setCategories] = useState(props.categories);
   const [people, setPeople] = useState(props.people);
   const [entries, setEntries] = useState(props.entries);
+  const [links, setLinks] = useState(props.links);
   const [filter, setFilter] = useState<string | null>(null);
   const [personFilter, setPersonFilter] = useState<string | null>(null);
   const [openDay, setOpenDay] = useState<IsoDay | null>(null);
+  const [prefill, setPrefill] = useState<DayPrefill | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null | undefined>(undefined);
   const [editingPerson, setEditingPerson] = useState<Person | null | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [me, setMe] = useMe(workspace.slug);
   const [orientation, setOrientation] = useOrientation();
 
@@ -84,6 +92,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
 
   const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const peopleById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
+  const linksById = useMemo(() => new Map(links.map((l) => [l.id, l])), [links]);
 
   // Picking a person narrows everything below — grid, tooltips, stats — to their entries.
   const visibleEntries = useMemo(
@@ -123,12 +132,28 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
   // "All" mixes category colours per cell, so its legend shows intensity in neutral grey.
   const legendColor = filterCategory?.color ?? "var(--muted-foreground)";
 
-  function upsertEntry(entry: Entry) {
+  function saveEntry({ entry, link }: SavedEntry) {
+    if (link) setLinks((prev) => [...prev.filter((l) => l.id !== link.id), link]);
     setEntries((prev) => {
       const next = prev.filter((e) => e.id !== entry.id);
       next.push(entry);
       return next.sort((a, b) => a.day.localeCompare(b.day) || a.createdAt.localeCompare(b.createdAt));
     });
+  }
+
+  function removeLink(id: string) {
+    setLinks((prev) => prev.filter((l) => l.id !== id));
+    // The database keeps the entries and clears the link; mirror that.
+    setEntries((prev) => prev.map((e) => (e.linkId === id ? { ...e, linkId: null } : e)));
+  }
+
+  /** From the library: open today with that link, its category and last note filled in. */
+  function logAgain({ link, entries: done }: LibraryItem) {
+    if (!today) return;
+    const last = done[0];
+    setPrefill({ key: `${link.id}:${Date.now()}`, link, categoryId: last.categoryId, description: last.description });
+    setLibraryOpen(false);
+    setOpenDay(today);
   }
 
   function upsertCategory(category: Category) {
@@ -237,6 +262,9 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
       <Button variant="ghost" size="sm" onClick={() => setStatsOpen(true)}>
         <BarChart3Icon /> Stats
       </Button>
+      <Button variant="ghost" size="sm" onClick={() => setLibraryOpen(true)}>
+        <LibraryIcon /> Library
+      </Button>
       {!readOnly && (
         <Hint label="Settings">
           <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
@@ -312,15 +340,36 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
         entries={openDay ? (entriesByDay.get(openDay) ?? []) : []}
         categories={categories}
         people={people}
+        linksById={linksById}
+        prefill={prefill}
         me={me}
         onPickMe={setMe}
         defaultCategoryId={filter}
         readOnly={readOnly}
-        onClose={() => setOpenDay(null)}
-        onSaved={upsertEntry}
+        onClose={() => {
+          setOpenDay(null);
+          setPrefill(null);
+        }}
+        onSaved={saveEntry}
         onDeleted={(id) => setEntries((prev) => prev.filter((e) => e.id !== id))}
         onNewCategory={() => setEditingCategory(null)}
       />
+      {today && (
+        <LibrarySheet
+          open={libraryOpen}
+          onClose={() => setLibraryOpen(false)}
+          slug={workspace.slug}
+          categories={categories}
+          people={people}
+          entries={visibleEntries}
+          links={links}
+          today={today}
+          initialCategoryId={filter}
+          readOnly={readOnly}
+          onLogAgain={logAgain}
+          onDeleted={removeLink}
+        />
+      )}
       {today && (
         <StatsSheet
           open={statsOpen}

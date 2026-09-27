@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { Loader2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { toast } from "sonner";
-import { createEntry, deleteEntry, updateEntry } from "@/app/w/[slug]/actions";
+import { createEntry, deleteEntry, previewLink, updateEntry, type SavedEntry } from "@/app/w/[slug]/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -11,9 +11,20 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar } from "@/components/Avatar";
 import { Hint } from "@/components/Hint";
+import { LinkCard } from "@/components/LinkCard";
 import { longDayLabel, type IsoDay } from "@/lib/dates";
-import type { Category, Entry, Person } from "@/lib/types";
+import { normalizeUrl } from "@/lib/links";
+import type { Category, Entry, Link, Person } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+/** Starts the form filled in, e.g. "Log again" from the library. */
+export type DayPrefill = {
+  /** Changes every time, so the form resets even for the same link twice. */
+  key: string;
+  categoryId: string;
+  description: string;
+  link: Link;
+};
 
 type Props = {
   slug: string;
@@ -21,6 +32,8 @@ type Props = {
   entries: Entry[];
   categories: Category[];
   people: Person[];
+  linksById: Map<string, Link>;
+  prefill: DayPrefill | null;
   /** Who "I" am on this device; pre-selects the "Logged by" picker. */
   me: string | null;
   onPickMe: (personId: string) => void;
@@ -28,7 +41,7 @@ type Props = {
   /** View-only link: list the day's entries, no form or edit controls. */
   readOnly: boolean;
   onClose: () => void;
-  onSaved: (entry: Entry) => void;
+  onSaved: (saved: SavedEntry) => void;
   onDeleted: (id: string) => void;
   onNewCategory: () => void;
 };
@@ -37,8 +50,8 @@ export function DayDialog(props: Props) {
   return (
     <Dialog open={props.day !== null} onOpenChange={(open) => !open && props.onClose()}>
       <DialogContent className="sm:max-w-md">
-        {/* Keyed by day so the form resets when another day is opened. */}
-        {props.day && <DayBody key={props.day} {...props} day={props.day} />}
+        {/* Keyed by day (and prefill) so the form resets when another day is opened. */}
+        {props.day && <DayBody key={`${props.day}:${props.prefill?.key ?? ""}`} {...props} day={props.day} />}
       </DialogContent>
     </Dialog>
   );
@@ -50,6 +63,8 @@ function DayBody({
   entries,
   categories,
   people,
+  linksById,
+  prefill,
   me,
   onPickMe,
   defaultCategoryId,
@@ -65,12 +80,37 @@ function DayBody({
   // Only pre-select "me" if that person still exists.
   const [personId, setPersonId] = useState<string | null>(me && peopleById.has(me) ? me : null);
   const [categoryId, setCategoryId] = useState<string | null>(
-    defaultCategoryId ?? categories[0]?.id ?? null,
+    (prefill && byId.has(prefill.categoryId) ? prefill.categoryId : null) ?? defaultCategoryId ?? categories[0]?.id ?? null,
   );
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(prefill?.description ?? "");
   const [quantity, setQuantity] = useState("");
+  const [url, setUrl] = useState(prefill?.link.url ?? "");
+  const [preview, setPreview] = useState<Link | null>(prefill?.link ?? null);
+  const [previewing, setPreviewing] = useState(false);
   const [pending, startTransition] = useTransition();
   const descriptionRef = useRef<HTMLInputElement>(null);
+  const previewTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Only the latest lookup may set the preview; earlier ones can land late.
+  const previewSeq = useRef(0);
+
+  function showLink(value: string, link: Link | null = null) {
+    clearTimeout(previewTimer.current);
+    const seq = ++previewSeq.current;
+    setUrl(value);
+    const normalized = normalizeUrl(value);
+    const known = link ?? (normalized ? [...linksById.values()].find((l) => l.url === normalized) : undefined);
+    setPreview(known ?? null);
+    setPreviewing(false);
+    if (known || !normalized) return;
+    // Wait for typing to settle; a paste goes through almost at once.
+    setPreviewing(true);
+    previewTimer.current = setTimeout(async () => {
+      const res = await previewLink(slug, value);
+      if (seq !== previewSeq.current) return;
+      setPreviewing(false);
+      setPreview(res.ok ? res.data : null);
+    }, 400);
+  }
 
   const unit = categoryId ? byId.get(categoryId)?.unit : null;
 
@@ -79,6 +119,7 @@ function DayBody({
     setPersonId(me && peopleById.has(me) ? me : null);
     setDescription("");
     setQuantity("");
+    showLink("");
     // Ready for the next entry without reaching for the mouse.
     requestAnimationFrame(() => descriptionRef.current?.focus());
   }
@@ -89,6 +130,8 @@ function DayBody({
     setPersonId(entry.personId);
     setDescription(entry.description);
     setQuantity(entry.quantity?.toString() ?? "");
+    const link = entry.linkId ? linksById.get(entry.linkId) : undefined;
+    showLink(link?.url ?? "", link ?? null);
   }
 
   function submit(e: React.FormEvent) {
@@ -99,16 +142,18 @@ function DayBody({
       toast.error("Amount must be a positive number");
       return;
     }
-    const input = { categoryId, personId, day, description, quantity: q };
+    const input = { categoryId, personId, day, description, quantity: q, url };
     startTransition(async () => {
       const res = editing ? await updateEntry(slug, editing.id, input) : await createEntry(slug, input);
       if (!res.ok) return void toast.error(res.error);
+      clearTimeout(previewTimer.current);
       onSaved(res.data);
       if (editing) return reset();
       // Logging as someone makes them "me" on this device for next time.
       if (personId) onPickMe(personId);
       onClose();
-      const what = res.data.description || byId.get(res.data.categoryId)?.name;
+      const { entry, link } = res.data;
+      const what = entry.description || link?.title || byId.get(entry.categoryId)?.name;
       toast.success(what ? `Logged “${what}”` : "Logged", { description: longDayLabel(day) });
     });
   }
@@ -140,6 +185,7 @@ function DayBody({
           {entries.map((entry) => {
             const cat = byId.get(entry.categoryId);
             const author = entry.personId ? peopleById.get(entry.personId) : undefined;
+            const link = entry.linkId ? linksById.get(entry.linkId) : undefined;
             return (
               <li
                 key={entry.id}
@@ -148,12 +194,18 @@ function DayBody({
               >
                 <span className="size-2.5 shrink-0 rounded-full" style={{ background: cat?.color }} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">{entry.description || cat?.name}</div>
+                  {/* With no note, the link itself is the headline rather than repeating its title. */}
+                  {link && !entry.description ? (
+                    <LinkCard link={link} variant="row" className="text-sm text-foreground" />
+                  ) : (
+                    <div className="truncate text-sm">{entry.description || cat?.name}</div>
+                  )}
                   <div className="text-xs text-muted-foreground">
                     {cat?.name}
                     {entry.quantity != null && ` · ${entry.quantity}${cat?.unit ? ` ${cat.unit}` : ""}`}
                     {author && ` · ${author.name}`}
                   </div>
+                  {link && entry.description && <LinkCard link={link} variant="row" className="mt-1.5" />}
                 </div>
                 {author && <Avatar person={author} size="sm" />}
                 {!readOnly && (
@@ -259,6 +311,38 @@ function DayBody({
               onChange={(e) => setDescription(e.target.value)}
               autoFocus
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="link">Link</Label>
+            <div className="relative">
+              <Input
+                id="link"
+                type="url"
+                inputMode="url"
+                placeholder="Paste a YouTube video or any web page"
+                value={url}
+                onChange={(e) => showLink(e.target.value)}
+                className={url ? "pr-8" : undefined}
+              />
+              {previewing ? (
+                <Loader2Icon className="absolute top-1/2 right-2.5 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+              ) : (
+                url && (
+                  <button
+                    type="button"
+                    aria-label="Remove link"
+                    onClick={() => showLink("")}
+                    className="absolute top-1/2 right-1.5 grid size-6 -translate-y-1/2 place-items-center rounded-md text-muted-foreground outline-none hover:bg-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <XIcon className="size-3.5" />
+                  </button>
+                )
+              )}
+            </div>
+            {preview && <LinkCard link={preview} />}
+            {url && !previewing && !preview && !normalizeUrl(url) && (
+              <p className="text-xs text-muted-foreground">That doesn’t look like a web link.</p>
+            )}
           </div>
           <div className="flex justify-end gap-2 pt-1">
             {editing && (
