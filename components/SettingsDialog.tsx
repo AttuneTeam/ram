@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Divider } from "@/lib/grid";
+import type { Orientation } from "@/lib/orientation";
 import type { Category, Person, Workspace } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,8 @@ type Props = {
   workspace: Workspace;
   categories: Category[];
   people: Person[];
+  orientation: Orientation;
+  onOrientationChange: (o: Orientation) => void;
   onClose: () => void;
   onWorkspaceChange: (w: Workspace) => void;
   onEditCategory: (c: Category | null) => void;
@@ -30,6 +33,8 @@ export function SettingsDialog({
   workspace,
   categories,
   people,
+  orientation,
+  onOrientationChange,
   onClose,
   onWorkspaceChange,
   onEditCategory,
@@ -164,6 +169,20 @@ export function SettingsDialog({
               ))}
             </ul>
           )}
+        </section>
+
+        <section className="space-y-1.5">
+          <Label>Layout</Label>
+          <Segmented
+            value={orientation}
+            options={[
+              { value: "horizontal", label: "Horizontal" },
+              { value: "vertical", label: "Vertical" },
+            ]}
+            onChange={onOrientationChange}
+          />
+          {/* Unlike everything else here, this is a per-device preference (lib/orientation.ts). */}
+          <p className="text-xs text-muted-foreground">Only on this device. Everyone else keeps their own.</p>
         </section>
 
         <section className="space-y-2">

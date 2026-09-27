@@ -35,6 +35,14 @@ export const entryInput = z.object({
     .nullable()
     .optional()
     .transform((v) => v ?? null),
+  /** Raw as typed; the action normalises it (lib/links.ts). Empty = no link. */
+  url: z
+    .string()
+    .trim()
+    .max(2048, "That link is too long")
+    .nullable()
+    .optional()
+    .transform((v) => v || null),
   day: z.string().refine(isValidDay, "Invalid date"),
   description: z.string().trim().max(280).default(""),
   quantity: z
