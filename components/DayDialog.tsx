@@ -54,6 +54,7 @@ function DayBody({
   onPickMe,
   defaultCategoryId,
   readOnly,
+  onClose,
   onSaved,
   onDeleted,
   onNewCategory,
@@ -103,9 +104,12 @@ function DayBody({
       const res = editing ? await updateEntry(slug, editing.id, input) : await createEntry(slug, input);
       if (!res.ok) return void toast.error(res.error);
       onSaved(res.data);
+      if (editing) return reset();
       // Logging as someone makes them "me" on this device for next time.
-      if (!editing && personId) onPickMe(personId);
-      reset();
+      if (personId) onPickMe(personId);
+      onClose();
+      const what = res.data.description || byId.get(res.data.categoryId)?.name;
+      toast.success(what ? `Logged “${what}”` : "Logged", { description: longDayLabel(day) });
     });
   }
 
