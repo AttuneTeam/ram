@@ -58,4 +58,6 @@ export const settingsInput = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   divider: z.enum(["none", "month", "year"]).optional(),
   weekStart: z.union([z.literal(0), z.literal(1)]).optional(),
+  weekdayLabels: z.boolean().optional(),
+  dayNumbers: z.boolean().optional(),
 });

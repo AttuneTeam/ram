@@ -8,6 +8,7 @@ import {
   LibraryIcon,
   LinkIcon,
   MoonIcon,
+  MoreVerticalIcon,
   PlusIcon,
   Rows3Icon,
   Settings2Icon,
@@ -30,6 +31,7 @@ import { StatsSheet } from "@/components/StatsSheet";
 import { VerticalGrid } from "@/components/VerticalGrid";
 import { useTheme } from "@/components/ThemeProvider";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { rememberWorkspace } from "@/lib/recent";
 import { buildGrid, gridStart } from "@/lib/grid";
 import { cellBackground, shade, shadeDays } from "@/lib/intensity";
@@ -112,7 +114,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
 
   const cells = useMemo(() => shadeDays(visibleEntries, categories, filter), [visibleEntries, categories, filter]);
 
-  const { divider, weekStart } = workspace.settings;
+  const { divider, weekStart, weekdayLabels, dayNumbers } = workspace.settings;
   const segments = useMemo(() => {
     if (!today) return [];
     // Span everyone's history, so switching person doesn't change the grid's width.
@@ -188,7 +190,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
   if (filterPerson) summary += ` by ${filterPerson.name.split(/\s+/)[0]}`;
 
   const gridData: GridData | null = today
-    ? { cells, entriesByDay, categoriesById, peopleById, categoryId: filter, today, readOnly, onSelectDay: setOpenDay }
+    ? { cells, entriesByDay, categoriesById, peopleById, categoryId: filter, today, readOnly, dayNumbers, onSelectDay: setOpenDay }
     : null;
 
   // ── Pieces shared by both layouts ────────────────────────────────────────
@@ -252,50 +254,84 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
   );
 
   const nextOrientation = orientation === "vertical" ? "horizontal" : "vertical";
+  const themeLabel = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
   const actions = (
-    <div className="flex flex-wrap items-center gap-1">
-      {!readOnly && (
-        <Button variant="ghost" size="sm" onClick={() => setShareOpen(true)}>
-          <LinkIcon /> Share
-        </Button>
-      )}
-      <Button variant="ghost" size="sm" onClick={() => setStatsOpen(true)}>
-        <BarChart3Icon /> Stats
-      </Button>
-      <Button variant="ghost" size="sm" onClick={() => setLibraryOpen(true)}>
-        <LibraryIcon /> Library
-      </Button>
-      {!readOnly && (
-        <Hint label="Settings">
-          <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
-            <Settings2Icon />
-          </Button>
-        </Hint>
-      )}
-      {/* Editors switch layout in Settings; the view link has no Settings, so it keeps this. */}
-      {readOnly && (
-        <Hint label={`Switch to ${nextOrientation} view`}>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Switch to ${nextOrientation} view`}
-            onClick={() => setOrientation(nextOrientation)}
+    <>
+      {/* Phones: one kebab menu with big rows instead of a crowded row of small buttons. */}
+      <div className="sm:hidden">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button variant="ghost" size="icon" aria-label="More actions" className="size-11 text-muted-foreground" />}
           >
-            {orientation === "vertical" ? <Columns3Icon /> : <Rows3Icon />}
+            <MoreVerticalIcon />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {!readOnly && (
+              <DropdownMenuItem onClick={() => setShareOpen(true)}>
+                <LinkIcon /> Share
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={() => setStatsOpen(true)}>
+              <BarChart3Icon /> Stats
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setLibraryOpen(true)}>
+              <LibraryIcon /> Library
+            </DropdownMenuItem>
+            {!readOnly && (
+              <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                <Settings2Icon /> Settings
+              </DropdownMenuItem>
+            )}
+            {readOnly && (
+              <DropdownMenuItem onClick={() => setOrientation(nextOrientation)}>
+                {orientation === "vertical" ? <Columns3Icon /> : <Rows3Icon />} Switch to {nextOrientation} view
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={toggleTheme}>
+              {theme === "dark" ? <SunIcon /> : <MoonIcon />} {themeLabel}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="hidden flex-wrap items-center gap-1 sm:flex">
+        {!readOnly && (
+          <Button variant="ghost" size="sm" onClick={() => setShareOpen(true)}>
+            <LinkIcon /> Share
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" onClick={() => setStatsOpen(true)}>
+          <BarChart3Icon /> Stats
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setLibraryOpen(true)}>
+          <LibraryIcon /> Library
+        </Button>
+        {!readOnly && (
+          <Hint label="Settings">
+            <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
+              <Settings2Icon />
+            </Button>
+          </Hint>
+        )}
+        {/* Editors switch layout in Settings; the view link has no Settings, so it keeps this. */}
+        {readOnly && (
+          <Hint label={`Switch to ${nextOrientation} view`}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Switch to ${nextOrientation} view`}
+              onClick={() => setOrientation(nextOrientation)}
+            >
+              {orientation === "vertical" ? <Columns3Icon /> : <Rows3Icon />}
+            </Button>
+          </Hint>
+        )}
+        <Hint label={themeLabel}>
+          <Button variant="ghost" size="icon-sm" aria-label={themeLabel} onClick={toggleTheme}>
+            {theme === "dark" ? <SunIcon /> : <MoonIcon />}
           </Button>
         </Hint>
-      )}
-      <Hint label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          onClick={toggleTheme}
-        >
-          {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-        </Button>
-      </Hint>
-    </div>
+      </div>
+    </>
   );
 
   const categoryChips = (stacked: boolean) => (
@@ -481,9 +517,15 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
 
       <section className="mt-4 rounded-2xl bg-popover p-4 sm:p-6 dark:bg-card">
         {gridData ? (
-          <ActivityGrid segments={segments} data={gridData} weekStart={weekStart} divider={divider} />
+          <ActivityGrid
+            segments={segments}
+            data={gridData}
+            weekStart={weekStart}
+            divider={divider}
+            weekdayLabels={weekdayLabels}
+          />
         ) : (
-          <div className="h-[168px] sm:h-[196px] lg:h-[224px]" />
+          <div className="h-[321px] sm:h-[196px] lg:h-[224px]" />
         )}
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">

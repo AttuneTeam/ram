@@ -17,12 +17,28 @@ export type GridData = {
   categoryId: string | null;
   today: IsoDay;
   readOnly: boolean;
+  /** Print the day of the month in each cell. */
+  dayNumbers: boolean;
   onSelectDay: (day: IsoDay) => void;
 };
 
-/** Cell size and gap, stepped up with the viewport. Shared so both views match. */
+/**
+ * Cell size and gap. Phones get the biggest cells: they're tapped with a thumb,
+ * so they get roomy 36px targets. From sm up a mouse is likely and cells step
+ * up with the viewport instead.
+ */
 export const CELL_VARS =
-  "[--cell:15px] [--gap:3px] sm:[--cell:18px] sm:[--gap:4px] lg:[--cell:22px] lg:[--gap:5px]";
+  "[--cell:36px] [--gap:4px] sm:[--cell:18px] sm:[--gap:4px] lg:[--cell:22px] lg:[--gap:5px]";
+
+/**
+ * The vertical view only needs 7 cells across, so on phones they stretch to
+ * fill the width: viewport less the page and card padding (2 × 16px each) and
+ * the month label column (36px + 12px gap) = 112px, capped so a tablet-ish
+ * phone in landscape doesn't get giant squares. A tight gap leaves more for the
+ * cells: about 36px on a typical 390px phone.
+ */
+export const VERTICAL_CELL_VARS =
+  "[--gap:3px] [--cell:min(44px,calc((100vw_-_112px_-_6*var(--gap))/7))] sm:[--cell:18px] sm:[--gap:4px] lg:[--cell:22px] lg:[--gap:5px]";
 
 export function scopedEntries(entries: Entry[] | undefined, categoryId: string | null): Entry[] {
   if (!entries) return [];
@@ -73,6 +89,8 @@ export function useDayHover() {
 
 export function DayButton({ day, data }: { day: IsoDay; data: GridData }) {
   const n = scopedEntries(data.entriesByDay.get(day), data.categoryId).length;
+  // The number sits over the first (leftmost) band, so contrast follows that one.
+  const level = data.cells.get(day)?.bands[0]?.level ?? 0;
   return (
     <button
       type="button"
@@ -81,12 +99,25 @@ export function DayButton({ day, data }: { day: IsoDay; data: GridData }) {
       aria-label={`${longDayLabel(day)}: ${n === 0 ? "nothing logged" : `${n} logged`}`}
       onClick={() => data.onSelectDay(day)}
       className={cn(
-        "size-(--cell) shrink-0 rounded-[4px] outline-none transition-[transform,box-shadow] duration-100",
+        "relative size-(--cell) shrink-0 rounded-[max(4px,calc(var(--cell)*0.18))] outline-none transition-[transform,box-shadow] duration-100",
         "hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         day === data.today && "ring-2 ring-foreground/40 ring-offset-1 ring-offset-background",
       )}
       style={{ background: cellBackground(data.cells.get(day)) }}
-    />
+    >
+      {data.dayNumbers && (
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute top-[2px] left-[3px] font-medium tabular-nums leading-none text-[clamp(8px,calc(var(--cell)*0.3),11px)]",
+            // Deep shades need light text; pale ones need dark.
+            level >= 3 ? "text-white/90" : "text-foreground/55",
+          )}
+        >
+          {Number(day.slice(8))}
+        </span>
+      )}
+    </button>
   );
 }
 
