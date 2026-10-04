@@ -17,6 +17,8 @@ export type GridData = {
   categoryId: string | null;
   today: IsoDay;
   readOnly: boolean;
+  /** Print the day of the month in each cell. */
+  dayNumbers: boolean;
   onSelectDay: (day: IsoDay) => void;
 };
 
@@ -87,6 +89,8 @@ export function useDayHover() {
 
 export function DayButton({ day, data }: { day: IsoDay; data: GridData }) {
   const n = scopedEntries(data.entriesByDay.get(day), data.categoryId).length;
+  // The number sits over the first (leftmost) band, so contrast follows that one.
+  const level = data.cells.get(day)?.bands[0]?.level ?? 0;
   return (
     <button
       type="button"
@@ -95,12 +99,25 @@ export function DayButton({ day, data }: { day: IsoDay; data: GridData }) {
       aria-label={`${longDayLabel(day)}: ${n === 0 ? "nothing logged" : `${n} logged`}`}
       onClick={() => data.onSelectDay(day)}
       className={cn(
-        "size-(--cell) shrink-0 rounded-[max(4px,calc(var(--cell)*0.18))] outline-none transition-[transform,box-shadow] duration-100",
+        "relative size-(--cell) shrink-0 rounded-[max(4px,calc(var(--cell)*0.18))] outline-none transition-[transform,box-shadow] duration-100",
         "hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         day === data.today && "ring-2 ring-foreground/40 ring-offset-1 ring-offset-background",
       )}
       style={{ background: cellBackground(data.cells.get(day)) }}
-    />
+    >
+      {data.dayNumbers && (
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute top-[2px] left-[3px] font-medium tabular-nums leading-none text-[clamp(8px,calc(var(--cell)*0.3),11px)]",
+            // Deep shades need light text; pale ones need dark.
+            level >= 3 ? "text-white/90" : "text-foreground/55",
+          )}
+        >
+          {Number(day.slice(8))}
+        </span>
+      )}
+    </button>
   );
 }
 

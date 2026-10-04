@@ -7,9 +7,11 @@ export type WorkspaceSettings = {
   weekStart: 0 | 1;
   /** Name every weekday beside the horizontal grid; off hides the labels. */
   weekdayLabels: boolean;
+  /** Print the day of the month in each cell's corner. */
+  dayNumbers: boolean;
 };
 
-export const DEFAULT_SETTINGS: WorkspaceSettings = { divider: "none", weekStart: 1, weekdayLabels: true };
+export const DEFAULT_SETTINGS: WorkspaceSettings = { divider: "none", weekStart: 1, weekdayLabels: true, dayNumbers: false };
 
 /**
  * What the client is allowed to see about a workspace. Never includes the PIN

@@ -114,7 +114,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
 
   const cells = useMemo(() => shadeDays(visibleEntries, categories, filter), [visibleEntries, categories, filter]);
 
-  const { divider, weekStart, weekdayLabels } = workspace.settings;
+  const { divider, weekStart, weekdayLabels, dayNumbers } = workspace.settings;
   const segments = useMemo(() => {
     if (!today) return [];
     // Span everyone's history, so switching person doesn't change the grid's width.
@@ -190,7 +190,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
   if (filterPerson) summary += ` by ${filterPerson.name.split(/\s+/)[0]}`;
 
   const gridData: GridData | null = today
-    ? { cells, entriesByDay, categoriesById, peopleById, categoryId: filter, today, readOnly, onSelectDay: setOpenDay }
+    ? { cells, entriesByDay, categoriesById, peopleById, categoryId: filter, today, readOnly, dayNumbers, onSelectDay: setOpenDay }
     : null;
 
   // ── Pieces shared by both layouts ────────────────────────────────────────
