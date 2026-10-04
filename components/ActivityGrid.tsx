@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { addDays, weekdayLabel } from "@/lib/dates";
 import type { Divider, Segment } from "@/lib/grid";
 import { cn } from "@/lib/utils";
-import { CELL_VARS, DayButton, DayTooltip, useDayHover, type GridData } from "./grid/shared";
+import { CELL_VARS, DayButton, DayTooltip, useDayHover, type GridData, EMPTY_CELL } from "./grid/shared";
 
 type Props = {
   segments: Segment[];
@@ -128,7 +128,11 @@ export function ActivityGrid({ segments, data, weekStart, divider, weekdayLabels
                       day ? (
                         <DayButton key={day} day={day} data={data} />
                       ) : (
-                        <span key={i} className="size-(--cell)" aria-hidden />
+                        <span
+                          key={i}
+                          className={cn("size-(--cell)", divider === "month" && EMPTY_CELL)}
+                          aria-hidden
+                        />
                       ),
                     )}
                   </div>
