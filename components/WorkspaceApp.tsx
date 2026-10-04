@@ -5,6 +5,7 @@ import {
   BarChart3Icon,
   Columns3Icon,
   EyeIcon,
+  LibraryIcon,
   LinkIcon,
   MoonIcon,
   PlusIcon,
@@ -18,8 +19,10 @@ import { ActivityGrid } from "@/components/ActivityGrid";
 import type { GridData } from "@/components/grid/shared";
 import { Avatar } from "@/components/Avatar";
 import { CategoryDialog } from "@/components/CategoryDialog";
-import { DaySheet } from "@/components/DaySheet";
+import type { SavedEntry } from "@/app/w/[slug]/actions";
+import { DaySheet, type DayPrefill } from "@/components/DaySheet";
 import { Hint } from "@/components/Hint";
+import { LibrarySheet } from "@/components/LibrarySheet";
 import { PersonDialog } from "@/components/PersonDialog";
 import { SettingsSheet } from "@/components/SettingsSheet";
 import { ShareDialog } from "@/components/ShareDialog";
@@ -33,7 +36,8 @@ import { cellBackground, shade, shadeDays } from "@/lib/intensity";
 import type { IsoDay } from "@/lib/dates";
 import { useMe } from "@/lib/me";
 import { useOrientation } from "@/lib/orientation";
-import type { Category, Entry, Person, Workspace } from "@/lib/types";
+import type { LibraryItem } from "@/lib/links";
+import type { Category, Entry, Link, Person, Workspace } from "@/lib/types";
 import { useToday } from "@/lib/useToday";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +46,7 @@ type Props = {
   categories: Category[];
   people: Person[];
   entries: Entry[];
+  links: Link[];
   isNew?: boolean;
   /** Opened through the view-only link: no editing, and no edit slug in `workspace`. */
   readOnly?: boolean;
@@ -55,14 +60,17 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
   const [categories, setCategories] = useState(props.categories);
   const [people, setPeople] = useState(props.people);
   const [entries, setEntries] = useState(props.entries);
+  const [links, setLinks] = useState(props.links);
   const [filter, setFilter] = useState<string | null>(null);
   const [personFilter, setPersonFilter] = useState<string | null>(null);
   const [openDay, setOpenDay] = useState<IsoDay | null>(null);
+  const [prefill, setPrefill] = useState<DayPrefill | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null | undefined>(undefined);
   const [editingPerson, setEditingPerson] = useState<Person | null | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [me, setMe] = useMe(workspace.slug);
   const [orientation, setOrientation] = useOrientation();
 
@@ -84,6 +92,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
 
   const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const peopleById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
+  const linksById = useMemo(() => new Map(links.map((l) => [l.id, l])), [links]);
 
   // Picking a person narrows everything below — grid, tooltips, stats — to their entries.
   const visibleEntries = useMemo(
@@ -123,12 +132,28 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
   // "All" mixes category colours per cell, so its legend shows intensity in neutral grey.
   const legendColor = filterCategory?.color ?? "var(--muted-foreground)";
 
-  function upsertEntry(entry: Entry) {
+  function saveEntry({ entry, link }: SavedEntry) {
+    if (link) setLinks((prev) => [...prev.filter((l) => l.id !== link.id), link]);
     setEntries((prev) => {
       const next = prev.filter((e) => e.id !== entry.id);
       next.push(entry);
       return next.sort((a, b) => a.day.localeCompare(b.day) || a.createdAt.localeCompare(b.createdAt));
     });
+  }
+
+  function removeLink(id: string) {
+    setLinks((prev) => prev.filter((l) => l.id !== id));
+    // The database keeps the entries and clears the link; mirror that.
+    setEntries((prev) => prev.map((e) => (e.linkId === id ? { ...e, linkId: null } : e)));
+  }
+
+  /** From the library: open today with that link, its category and last note filled in. */
+  function logAgain({ link, entries: done }: LibraryItem) {
+    if (!today) return;
+    const last = done[0];
+    setPrefill({ key: `${link.id}:${Date.now()}`, link, categoryId: last.categoryId, description: last.description });
+    setLibraryOpen(false);
+    setOpenDay(today);
   }
 
   function upsertCategory(category: Category) {
@@ -168,14 +193,9 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
 
   // ── Pieces shared by both layouts ────────────────────────────────────────
 
-  const eyebrow = (
-    <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-      Ram
-      {readOnly && (
-        <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10px] tracking-normal normal-case text-secondary-foreground">
-          <EyeIcon className="size-3" /> View only
-        </span>
-      )}
+  const eyebrow = readOnly && (
+    <p className="mb-2 flex w-fit items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10px] text-secondary-foreground">
+      <EyeIcon className="size-3" /> View only
     </p>
   );
 
@@ -242,6 +262,9 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
       <Button variant="ghost" size="sm" onClick={() => setStatsOpen(true)}>
         <BarChart3Icon /> Stats
       </Button>
+      <Button variant="ghost" size="sm" onClick={() => setLibraryOpen(true)}>
+        <LibraryIcon /> Library
+      </Button>
       {!readOnly && (
         <Hint label="Settings">
           <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
@@ -249,16 +272,19 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
           </Button>
         </Hint>
       )}
-      <Hint label={`Switch to ${nextOrientation} view`}>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Switch to ${nextOrientation} view`}
-          onClick={() => setOrientation(nextOrientation)}
-        >
-          {orientation === "vertical" ? <Columns3Icon /> : <Rows3Icon />}
-        </Button>
-      </Hint>
+      {/* Editors switch layout in Settings; the view link has no Settings, so it keeps this. */}
+      {readOnly && (
+        <Hint label={`Switch to ${nextOrientation} view`}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Switch to ${nextOrientation} view`}
+            onClick={() => setOrientation(nextOrientation)}
+          >
+            {orientation === "vertical" ? <Columns3Icon /> : <Rows3Icon />}
+          </Button>
+        </Hint>
+      )}
       <Hint label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
         <Button
           variant="ghost"
@@ -317,15 +343,36 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
         entries={openDay ? (entriesByDay.get(openDay) ?? []) : []}
         categories={categories}
         people={people}
+        linksById={linksById}
+        prefill={prefill}
         me={me}
         onPickMe={setMe}
         defaultCategoryId={filter}
         readOnly={readOnly}
-        onClose={() => setOpenDay(null)}
-        onSaved={upsertEntry}
+        onClose={() => {
+          setOpenDay(null);
+          setPrefill(null);
+        }}
+        onSaved={saveEntry}
         onDeleted={(id) => setEntries((prev) => prev.filter((e) => e.id !== id))}
         onNewCategory={() => setEditingCategory(null)}
       />
+      {today && (
+        <LibrarySheet
+          open={libraryOpen}
+          onClose={() => setLibraryOpen(false)}
+          slug={workspace.slug}
+          categories={categories}
+          people={people}
+          entries={visibleEntries}
+          links={links}
+          today={today}
+          initialCategoryId={filter}
+          readOnly={readOnly}
+          onLogAgain={logAgain}
+          onDeleted={removeLink}
+        />
+      )}
       {today && (
         <StatsSheet
           open={statsOpen}
@@ -357,6 +404,8 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
             workspace={workspace}
             categories={categories}
             people={people}
+            orientation={orientation ?? "horizontal"}
+            onOrientationChange={setOrientation}
             onClose={() => setSettingsOpen(false)}
             onWorkspaceChange={setWorkspace}
             onEditCategory={setEditingCategory}
@@ -377,14 +426,14 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
 
   // Orientation lives in this browser, so it's unknown until hydration. Render
   // nothing rather than one layout and then jump to the other.
-  if (!orientation) return <main className="min-h-dvh" />;
+  if (!orientation) return <main className="flex-1" />;
 
   // ── Vertical: sidebar on the left, the grid in its own scrolling pane ────
 
   if (orientation === "vertical") {
     return (
-      <main className="w-full lg:grid lg:h-dvh lg:grid-cols-[18rem_minmax(0,1fr)]">
-        <aside className="flex flex-col gap-6 px-4 pt-8 pb-4 sm:px-8 lg:overflow-y-auto lg:py-12 lg:pr-4">
+      <main className="w-full lg:grid lg:h-[calc(100dvh-var(--header-h))] lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <aside className="flex flex-col gap-6 px-4 pt-4 pb-4 sm:px-8 lg:overflow-y-auto lg:pt-4 lg:pb-12 lg:pr-4">
           <div className="min-w-0">
             {eyebrow}
             <h1 className="text-3xl font-semibold tracking-tight [overflow-wrap:anywhere] sm:text-4xl">{workspace.name}</h1>
@@ -402,7 +451,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
             scroll container's padding edge, so padding here would leave a gap
             above the weekday header for rows to show through. */}
         <section className="px-4 pb-8 sm:px-8 lg:overflow-y-auto lg:pb-0 lg:pl-4" aria-label="Activity">
-          <div className="w-fit max-w-full rounded-2xl bg-popover p-4 sm:p-6 lg:my-12 dark:bg-card">
+          <div className="w-fit max-w-full rounded-2xl bg-popover p-4 sm:p-6 lg:mt-4 lg:mb-12 dark:bg-card">
             {gridData ? (
               <VerticalGrid segments={segments} data={gridData} weekStart={weekStart} divider={divider} />
             ) : (
@@ -418,7 +467,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
   // ── Horizontal: the original layout ──────────────────────────────────────
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 sm:py-12">
+    <main className="mx-auto w-full max-w-6xl px-4 pt-4 pb-8 sm:px-8 sm:pb-12">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           {eyebrow}

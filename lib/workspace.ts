@@ -6,6 +6,7 @@ import {
   DEFAULT_SETTINGS,
   type Category,
   type Entry,
+  type Link,
   type Person,
   type Workspace,
   type WorkspaceSettings,
@@ -41,15 +42,36 @@ export type EntryRow = {
   id: string;
   category_id: string;
   person_id: string | null;
+  link_id: string | null;
   day: string;
   description: string;
   quantity: string | null;
   created_at: Date;
 };
 
+export type LinkRow = {
+  id: string;
+  url: string;
+  kind: "video" | "page";
+  title: string | null;
+  description: string | null;
+  image_url: string | null;
+  site_name: string | null;
+};
+
 export const CATEGORY_COLUMNS = ["id", "name", "color", "unit", "sort_order"] as const;
 export const PERSON_COLUMNS = ["id", "name", "sort_order"] as const;
-export const ENTRY_COLUMNS = ["id", "category_id", "person_id", "day", "description", "quantity", "created_at"] as const;
+export const ENTRY_COLUMNS = [
+  "id",
+  "category_id",
+  "person_id",
+  "link_id",
+  "day",
+  "description",
+  "quantity",
+  "created_at",
+] as const;
+export const LINK_COLUMNS = ["id", "url", "kind", "title", "description", "image_url", "site_name"] as const;
 
 export function cookieSecret(): string {
   const secret = process.env.ACCESS_COOKIE_SECRET;
@@ -97,11 +119,24 @@ export function toEntry(row: EntryRow): Entry {
     id: row.id,
     categoryId: row.category_id,
     personId: row.person_id,
+    linkId: row.link_id,
     day: row.day,
     description: row.description,
     // Postgres numeric arrives as a string to avoid precision loss.
     quantity: row.quantity === null ? null : Number(row.quantity),
     createdAt: row.created_at.toISOString(),
+  };
+}
+
+export function toLink(row: LinkRow): Link {
+  return {
+    id: row.id,
+    url: row.url,
+    kind: row.kind,
+    title: row.title,
+    description: row.description,
+    imageUrl: row.image_url,
+    siteName: row.site_name,
   };
 }
 
@@ -135,7 +170,7 @@ export async function requireWorkspace(slug: string): Promise<WorkspaceRow> {
 
 export async function loadWorkspaceData(workspaceId: string) {
   const sql = db();
-  const [categories, people, entries] = await Promise.all([
+  const [categories, people, entries, links] = await Promise.all([
     sql<CategoryRow[]>`
       select ${sql(CATEGORY_COLUMNS)} from categories
       where workspace_id = ${workspaceId}
@@ -148,10 +183,17 @@ export async function loadWorkspaceData(workspaceId: string) {
       select ${sql(ENTRY_COLUMNS)} from entries
       where workspace_id = ${workspaceId}
       order by day, created_at`,
+    // The library: links that were actually logged. A link previewed in the
+    // day dialog but never saved stays out of it.
+    sql<LinkRow[]>`
+      select ${sql(LINK_COLUMNS)} from links l
+      where workspace_id = ${workspaceId}
+        and exists (select 1 from entries e where e.link_id = l.id)`,
   ]);
   return {
     categories: categories.map(toCategory),
     people: people.map(toPerson),
     entries: entries.map(toEntry),
+    links: links.map(toLink),
   };
 }

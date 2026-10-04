@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { ChevronLeftIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ChevronLeftIcon, Loader2Icon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { toast } from "sonner";
-import { createEntry, deleteEntry, updateEntry } from "@/app/w/[slug]/actions";
+import { createEntry, deleteEntry, previewLink, updateEntry, type SavedEntry } from "@/app/w/[slug]/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -12,9 +12,52 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar } from "@/components/Avatar";
 import { Hint } from "@/components/Hint";
+import { LinkCard } from "@/components/LinkCard";
 import { longDayLabel, type IsoDay } from "@/lib/dates";
-import type { Category, Entry, Person } from "@/lib/types";
+import { normalizeUrl } from "@/lib/links";
+import type { Category, Entry, Link, Person } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+/** Starts the form filled in, e.g. "Log again" from the library. */
+export type DayPrefill = {
+  /** Changes every time, so the form resets even for the same link twice. */
+  key: string;
+  categoryId: string;
+  description: string;
+  link: Link;
+};
+
+/** The link field's state: the URL as typed, plus a (debounced) preview of what it points at. */
+function useLinkField(slug: string, linksById: Map<string, Link>, initial: Link | null) {
+  const [url, setUrl] = useState(initial?.url ?? "");
+  const [preview, setPreview] = useState<Link | null>(initial);
+  const [previewing, setPreviewing] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Only the latest lookup may set the preview; earlier ones can land late.
+  const seq = useRef(0);
+
+  function show(value: string, link: Link | null = null) {
+    clearTimeout(timer.current);
+    const mine = ++seq.current;
+    setUrl(value);
+    const normalized = normalizeUrl(value);
+    const known = link ?? (normalized ? [...linksById.values()].find((l) => l.url === normalized) : undefined);
+    setPreview(known ?? null);
+    setPreviewing(false);
+    if (known || !normalized) return;
+    // Wait for typing to settle; a paste goes through almost at once.
+    setPreviewing(true);
+    timer.current = setTimeout(async () => {
+      const res = await previewLink(slug, value);
+      if (mine !== seq.current) return;
+      setPreviewing(false);
+      setPreview(res.ok ? res.data : null);
+    }, 400);
+  }
+
+  return { url, preview, previewing, show, stop: () => clearTimeout(timer.current) };
+}
+type LinkField = ReturnType<typeof useLinkField>;
 
 type Props = {
   slug: string;
@@ -22,6 +65,8 @@ type Props = {
   entries: Entry[];
   categories: Category[];
   people: Person[];
+  linksById: Map<string, Link>;
+  prefill: DayPrefill | null;
   /** Who "I" am on this device; pre-selects the "Logged by" picker. */
   me: string | null;
   onPickMe: (personId: string) => void;
@@ -29,7 +74,7 @@ type Props = {
   /** View-only link: list the day's entries, no form or edit controls. */
   readOnly: boolean;
   onClose: () => void;
-  onSaved: (entry: Entry) => void;
+  onSaved: (saved: SavedEntry) => void;
   onDeleted: (id: string) => void;
   onNewCategory: () => void;
 };
@@ -38,8 +83,8 @@ export function DaySheet(props: Props) {
   return (
     <Sheet open={props.day !== null} onOpenChange={(open) => !open && props.onClose()}>
       <SheetContent className="data-[side=right]:w-full min-[480px]:max-w-md!">
-        {/* Keyed by day so the form resets when another day is opened. */}
-        {props.day && <DayBody key={props.day} {...props} day={props.day} />}
+        {/* Keyed by day (and prefill) so the form resets when another day is opened. */}
+        {props.day && <DayBody key={`${props.day}:${props.prefill?.key ?? ""}`} {...props} day={props.day} />}
       </SheetContent>
     </Sheet>
   );
@@ -51,10 +96,13 @@ function DayBody({
   entries,
   categories,
   people,
+  linksById,
+  prefill,
   me,
   onPickMe,
   defaultCategoryId,
   readOnly,
+  onClose,
   onSaved,
   onDeleted,
   onNewCategory,
@@ -64,17 +112,18 @@ function DayBody({
   // `editing` drives the slide; `shown` outlives it so the edit view keeps its content while sliding out.
   const [editing, setEditing] = useState<Entry | null>(null);
   // With entries already logged, the form stays tucked behind an "Add" button.
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(prefill !== null);
   const [deleting, setDeleting] = useState<Entry | null>(null);
   const showForm = adding || entries.length === 0;
   const [shown, setShown] = useState<Entry | null>(null);
   // Only pre-select "me" if that person still exists.
   const [personId, setPersonId] = useState<string | null>(me && peopleById.has(me) ? me : null);
   const [categoryId, setCategoryId] = useState<string | null>(
-    defaultCategoryId ?? categories[0]?.id ?? null,
+    (prefill && byId.has(prefill.categoryId) ? prefill.categoryId : null) ?? defaultCategoryId ?? categories[0]?.id ?? null,
   );
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(prefill?.description ?? "");
   const [quantity, setQuantity] = useState("");
+  const linkField = useLinkField(slug, linksById, prefill?.link ?? null);
   const [pending, startTransition] = useTransition();
   const descriptionRef = useRef<HTMLInputElement>(null);
 
@@ -95,17 +144,18 @@ function DayBody({
       toast.error("Amount must be a positive number");
       return;
     }
-    const input = { categoryId, personId, day, description, quantity: q };
+    const input = { categoryId, personId, day, description, quantity: q, url: linkField.url };
     startTransition(async () => {
       const res = await createEntry(slug, input);
       if (!res.ok) return void toast.error(res.error);
+      linkField.stop();
       onSaved(res.data);
       // Logging as someone makes them "me" on this device for next time.
       if (personId) onPickMe(personId);
-      setPersonId(me && peopleById.has(me) ? me : null);
-      setDescription("");
-      setQuantity("");
-      setAdding(false);
+      onClose();
+      const { entry, link } = res.data;
+      const what = entry.description || link?.title || byId.get(entry.categoryId)?.name;
+      toast.success(what ? `Logged “${what}”` : "Logged", { description: longDayLabel(day) });
     });
   }
 
@@ -144,6 +194,7 @@ function DayBody({
           {entries.map((entry) => {
             const cat = byId.get(entry.categoryId);
             const author = entry.personId ? peopleById.get(entry.personId) : undefined;
+            const link = entry.linkId ? linksById.get(entry.linkId) : undefined;
             return (
               <li
                 key={entry.id}
@@ -152,12 +203,18 @@ function DayBody({
               >
                 <span className="size-2.5 shrink-0 rounded-full" style={{ background: cat?.color }} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">{entry.description || cat?.name}</div>
+                  {/* With no note, the link itself is the headline rather than repeating its title. */}
+                  {link && !entry.description ? (
+                    <LinkCard link={link} variant="row" className="text-sm text-foreground" />
+                  ) : (
+                    <div className="truncate text-sm">{entry.description || cat?.name}</div>
+                  )}
                   <div className="text-xs text-muted-foreground">
                     {cat?.name}
                     {entry.quantity != null && ` · ${entry.quantity}${cat?.unit ? ` ${cat.unit}` : ""}`}
                     {author && ` · ${author.name}`}
                   </div>
+                  {link && entry.description && <LinkCard link={link} variant="row" className="mt-1.5" />}
                 </div>
                 {author && <Avatar person={author} size="sm" />}
                 {!readOnly && (
@@ -207,6 +264,7 @@ function DayBody({
             setDescription={setDescription}
             descriptionRef={descriptionRef}
             autoFocus
+            link={linkField}
           />
           <div className="flex justify-end gap-2 pt-1">
             {entries.length > 0 && (
@@ -234,9 +292,10 @@ function DayBody({
               entry={shown}
               categories={categories}
               people={people}
+              linksById={linksById}
               onCancel={closeEdit}
-              onSaved={(entry) => {
-                onSaved(entry);
+              onSaved={(saved) => {
+                onSaved(saved);
                 closeEdit();
               }}
               onDeleted={(id) => {
@@ -273,6 +332,7 @@ type FieldsProps = {
   setDescription: (v: string) => void;
   descriptionRef?: React.Ref<HTMLInputElement>;
   autoFocus?: boolean;
+  link: LinkField;
 };
 
 function EntryFields({
@@ -289,6 +349,7 @@ function EntryFields({
   setDescription,
   descriptionRef,
   autoFocus,
+  link,
 }: FieldsProps) {
   const byId = new Map(categories.map((c) => [c.id, c]));
   const unit = categoryId ? byId.get(categoryId)?.unit : null;
@@ -367,6 +428,38 @@ function EntryFields({
               onChange={(e) => setQuantity(e.target.value)}
             />
           </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${id}-link`}>Link</Label>
+        <div className="relative">
+          <Input
+            id={`${id}-link`}
+            type="url"
+            inputMode="url"
+            placeholder="Paste a YouTube video or any web page"
+            value={link.url}
+            onChange={(e) => link.show(e.target.value)}
+            className={link.url ? "pr-8" : undefined}
+          />
+          {link.previewing ? (
+            <Loader2Icon className="absolute top-1/2 right-2.5 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+          ) : (
+            link.url && (
+              <button
+                type="button"
+                aria-label="Remove link"
+                onClick={() => link.show("")}
+                className="absolute top-1/2 right-1.5 grid size-6 -translate-y-1/2 place-items-center rounded-md text-muted-foreground outline-none hover:bg-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <XIcon className="size-3.5" />
+              </button>
+            )
+          )}
+        </div>
+        {link.preview && <LinkCard link={link.preview} />}
+        {link.url && !link.previewing && !link.preview && !normalizeUrl(link.url) && (
+          <p className="text-xs text-muted-foreground">That doesn’t look like a web link.</p>
+        )}
+      </div>
     </>
   );
 }
@@ -378,22 +471,25 @@ function EditPanel({
   categories,
   people,
   onCancel,
+  linksById,
   onSaved,
   onDeleted,
 }: {
   slug: string;
   day: IsoDay;
   entry: Entry;
+  linksById: Map<string, Link>;
   categories: Category[];
   people: Person[];
   onCancel: () => void;
-  onSaved: (entry: Entry) => void;
+  onSaved: (saved: SavedEntry) => void;
   onDeleted: (id: string) => void;
 }) {
   const [personId, setPersonId] = useState<string | null>(entry.personId);
   const [categoryId, setCategoryId] = useState<string | null>(entry.categoryId);
   const [description, setDescription] = useState(entry.description);
   const [quantity, setQuantity] = useState(entry.quantity?.toString() ?? "");
+  const linkField = useLinkField(slug, linksById, entry.linkId ? (linksById.get(entry.linkId) ?? null) : null);
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -406,8 +502,9 @@ function EditPanel({
       return;
     }
     startTransition(async () => {
-      const res = await updateEntry(slug, entry.id, { categoryId, personId, day, description, quantity: q });
+      const res = await updateEntry(slug, entry.id, { categoryId, personId, day, description, quantity: q, url: linkField.url });
       if (!res.ok) return void toast.error(res.error);
+      linkField.stop();
       onSaved(res.data);
     });
   }
@@ -447,6 +544,7 @@ function EditPanel({
           setQuantity={setQuantity}
           description={description}
           setDescription={setDescription}
+          link={linkField}
         />
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="destructive" className="mr-auto" onClick={() => setConfirming(true)} disabled={pending}>

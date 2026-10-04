@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function NotFound() {
   return (
-    <main className="grid min-h-dvh place-items-center px-4 text-center">
+    <main className="grid flex-1 place-items-center px-4 pb-(--header-h) text-center">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Nothing here</h1>
         <p className="mt-1 text-sm text-muted-foreground">Check the link — workspace addresses are case-sensitive.</p>
