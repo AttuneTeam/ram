@@ -7,6 +7,7 @@ import { deleteLink } from "@/app/w/[slug]/actions";
 import { Hint } from "@/components/Hint";
 import { LinkCard } from "@/components/LinkCard";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { diffDays, monthLabel, type IsoDay } from "@/lib/dates";
@@ -45,6 +46,10 @@ export function LibrarySheet(props: Props) {
   const [picked, setPicked] = useState<string | null | undefined>(undefined);
   const [query, setQuery] = useState("");
   const [pending, startTransition] = useTransition();
+  const [removing, setRemoving] = useState<LibraryItem | null>(null);
+  // Kept after closing so the dialog text doesn't blank while it fades out.
+  const [lastRemoving, setLastRemoving] = useState<LibraryItem | null>(null);
+  if (removing && removing !== lastRemoving) setLastRemoving(removing);
   const categoryId = picked === undefined ? initialCategoryId : picked;
 
   const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
@@ -69,6 +74,7 @@ export function LibrarySheet(props: Props) {
     startTransition(async () => {
       const res = await deleteLink(slug, item.link.id);
       if (!res.ok) return void toast.error(res.error);
+      setRemoving(null);
       props.onDeleted(item.link.id);
       toast.success("Removed from the library", { description: "Its entries are still logged." });
     });
@@ -77,7 +83,7 @@ export function LibrarySheet(props: Props) {
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       {/* Focus the search only with a keyboard: on a phone it would pop the keyboard over the list. */}
-      <SheetContent className="w-full overflow-y-auto sm:max-w-md!" initialFocus={(type) => type === "keyboard"}>
+      <SheetContent className="data-[side=right]:w-full overflow-y-auto min-[480px]:max-w-md!" initialFocus={(type) => type === "keyboard"}>
         <SheetHeader>
           <SheetTitle className="text-lg tracking-tight">Library</SheetTitle>
           <SheetDescription>Videos and pages you’ve logged, most recent first.</SheetDescription>
@@ -148,7 +154,7 @@ export function LibrarySheet(props: Props) {
                                 size="icon-sm"
                                 aria-label="Remove from library"
                                 disabled={pending}
-                                onClick={() => remove(item)}
+                                onClick={() => setRemoving(item)}
                               >
                                 <Trash2Icon />
                               </Button>
@@ -170,6 +176,23 @@ export function LibrarySheet(props: Props) {
           </div>
         )}
       </SheetContent>
+
+      <Dialog open={removing !== null} onOpenChange={(o) => !o && !pending && setRemoving(null)}>
+        <DialogContent className="sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Remove “{lastRemoving?.link.title ?? lastRemoving?.link.url}” from the library?</DialogTitle>
+            <DialogDescription>Its entries are still logged. This can’t be undone.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRemoving(null)} disabled={pending}>
+              Keep it
+            </Button>
+            <Button variant="destructive" onClick={() => removing && remove(removing)} disabled={pending}>
+              {pending ? "Removing…" : "Remove link"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }

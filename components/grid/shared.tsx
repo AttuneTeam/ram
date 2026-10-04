@@ -22,6 +22,10 @@ export type GridData = {
   onSelectDay: (day: IsoDay) => void;
 };
 
+/** Placeholder for a slot outside the month (month dividers only): a faint outline. */
+export const EMPTY_CELL =
+  "rounded-[max(4px,calc(var(--cell)*0.18))] border border-border/40";
+
 /**
  * Cell size and gap. Phones get the biggest cells: they're tapped with a thumb,
  * so they get roomy 36px targets. From sm up a mouse is likely and cells step

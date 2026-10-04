@@ -16,6 +16,9 @@ import type { Orientation } from "@/lib/orientation";
 import type { Category, Person, Workspace } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+/** The horizontal/vertical layout switch is hidden for now. */
+const SHOW_LAYOUT_OPTION = false;
+
 type Props = {
   open: boolean;
   workspace: Workspace;
@@ -138,9 +141,9 @@ export function SettingsSheet({
           <Segmented
             value={workspace.settings.divider}
             options={[
-              { value: "none", label: "None" },
-              { value: "month", label: "Months" },
-              { value: "year", label: "Years" },
+              { value: "none", label: "None", preview: <DividerPreview gaps={0} /> },
+              { value: "month", label: "Months", preview: <DividerPreview gaps={2} outlined /> },
+              { value: "year", label: "Years", preview: <DividerPreview gaps={5} /> },
             ]}
             onChange={(divider) => save({ divider })}
           />
@@ -151,8 +154,8 @@ export function SettingsSheet({
           <Segmented
             value={workspace.settings.weekStart}
             options={[
-              { value: 1, label: "Monday" },
-              { value: 0, label: "Sunday" },
+              { value: 1, label: "Monday", preview: <Tile>M</Tile> },
+              { value: 0, label: "Sunday", preview: <Tile>S</Tile> },
             ]}
             onChange={(weekStart) => save({ weekStart })}
           />
@@ -163,8 +166,8 @@ export function SettingsSheet({
           <Segmented
             value={workspace.settings.weekdayLabels}
             options={[
-              { value: true, label: "Show" },
-              { value: false, label: "Hide" },
+              { value: true, label: "Show", preview: <WeekdayPreview labels /> },
+              { value: false, label: "Hide", preview: <WeekdayPreview labels={false} /> },
             ]}
             onChange={(weekdayLabels) => save({ weekdayLabels })}
           />
@@ -175,8 +178,8 @@ export function SettingsSheet({
           <Segmented
             value={workspace.settings.dayNumbers}
             options={[
-              { value: false, label: "Hide" },
-              { value: true, label: "Show" },
+              { value: false, label: "Hide", preview: <DayTile />, bare: true },
+              { value: true, label: "Show", preview: <DayTile number="12" />, bare: true },
             ]}
             onChange={(dayNumbers) => save({ dayNumbers })}
           />
@@ -243,19 +246,21 @@ export function SettingsSheet({
           )}
         </section>
 
-        <section className="space-y-1.5">
-          <Label>Layout</Label>
-          <Segmented
-            value={orientation}
-            options={[
-              { value: "horizontal", label: "Horizontal" },
-              { value: "vertical", label: "Vertical" },
-            ]}
-            onChange={onOrientationChange}
-          />
-          {/* Unlike everything else here, this is a per-device preference (lib/orientation.ts). */}
-          <p className="text-xs text-muted-foreground">Only on this device. Everyone else keeps their own.</p>
-        </section>
+        {SHOW_LAYOUT_OPTION && (
+          <section className="space-y-1.5">
+            <Label>Layout</Label>
+            <Segmented
+              value={orientation}
+              options={[
+                { value: "horizontal", label: "Horizontal" },
+                { value: "vertical", label: "Vertical" },
+              ]}
+              onChange={onOrientationChange}
+            />
+            {/* Unlike everything else here, this is a per-device preference (lib/orientation.ts). */}
+            <p className="text-xs text-muted-foreground">Only on this device. Everyone else keeps their own.</p>
+          </section>
+        )}
 
         <section className="space-y-2">
           <Label className="flex items-center gap-1.5">
@@ -345,26 +350,108 @@ function Segmented<T extends string | number | boolean>({
   onChange,
 }: {
   value: T;
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; preview?: React.ReactNode; bare?: boolean }[];
   onChange: (v: T) => void;
 }) {
+  const selected = options.find((o) => o.value === value);
+  const preview = selected?.preview;
   return (
-    <div role="radiogroup" className="inline-flex rounded-lg bg-well p-0.5">
-      {options.map((o) => (
-        <button
-          key={String(o.value)}
-          type="button"
-          role="radio"
-          aria-checked={value === o.value}
-          onClick={() => value !== o.value && onChange(o.value)}
-          className={cn(
-            "rounded-md px-3 py-1 text-sm text-muted-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            value === o.value && "bg-popover text-foreground shadow-sm dark:bg-input",
-          )}
+    <div className="flex items-center gap-3">
+      <div role="radiogroup" className="inline-flex rounded-md bg-well p-0.5">
+        {options.map((o) => (
+          <button
+            key={String(o.value)}
+            type="button"
+            role="radio"
+            aria-checked={value === o.value}
+            onClick={() => value !== o.value && onChange(o.value)}
+            className={cn(
+              "rounded-md px-3 py-1 text-sm text-muted-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              value === o.value && "bg-popover text-foreground shadow-sm dark:bg-foreground/20",
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {/* Shows what the selected option does, and follows the selection. */}
+      {preview && (
+        <span
+          className={cn("flex h-8 min-w-12 items-center justify-center", !selected?.bare && "rounded-md bg-well px-2")}
+          aria-hidden
         >
-          {o.label}
-        </button>
-      ))}
+          {preview}
+        </span>
+      )}
     </div>
+  );
+}
+
+/** A grid-cell lookalike for the option previews. */
+function Tile({ children }: { children?: React.ReactNode }) {
+  return (
+    <span className="flex size-5 items-center justify-center rounded-[5px] bg-foreground/15 text-[9px] font-semibold leading-none text-foreground/70">
+      {children}
+    </span>
+  );
+}
+
+/** Two little groups of cells, pulled apart by `gaps` to show the divider spacing. */
+function DividerPreview({ gaps, outlined = false }: { gaps: number; outlined?: boolean }) {
+  // Months outline the empty slots outside the month, as the grid does.
+  const group = (empty: number) => (
+    <span className="grid grid-cols-2 gap-px">
+      {Array.from({ length: 4 }, (_, i) => (
+        <span
+          key={i}
+          className={cn(
+            "size-1.5 rounded-[2px]",
+            outlined && i === empty ? "border border-foreground/20" : "bg-foreground/25",
+          )}
+        />
+      ))}
+    </span>
+  );
+  return (
+    <span className="flex items-center" style={{ gap: gaps * 2 }}>
+      {group(0)}
+      {group(3)}
+    </span>
+  );
+}
+
+/** Two rows of cells, with or without weekday names beside them. */
+function WeekdayPreview({ labels }: { labels: boolean }) {
+  return (
+    <span className="flex items-center gap-1">
+      {labels && (
+        <span className="flex flex-col gap-0.5 text-[6px] leading-[8px] text-foreground/60">
+          <span>Mo</span>
+          <span>Tu</span>
+        </span>
+      )}
+      <span className="flex flex-col gap-0.5">
+        {[0, 1].map((r) => (
+          <span key={r} className="flex gap-0.5">
+            {[0, 1, 2].map((c) => (
+              <span key={c} className="size-[8px] rounded-[2px] bg-foreground/25" />
+            ))}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
+/** A larger cell like the grid's, with the day number in the top-left corner. */
+function DayTile({ number }: { number?: string }) {
+  return (
+    <span className="relative size-8 rounded-[6px] bg-foreground/15">
+      {number && (
+        <span className="absolute top-[3px] left-[4px] text-[10px] font-medium leading-none tabular-nums text-foreground/55">
+          {number}
+        </span>
+      )}
+    </span>
   );
 }

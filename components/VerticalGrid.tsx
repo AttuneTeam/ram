@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import { addDays, weekdayLabel } from "@/lib/dates";
 import { newestFirst, verticalMonthLabels, type Divider, type Segment } from "@/lib/grid";
 import { cn } from "@/lib/utils";
-import { DayButton, DayTooltip, useDayHover, type GridData, VERTICAL_CELL_VARS } from "./grid/shared";
+import { DayButton, DayTooltip, useDayHover, type GridData, VERTICAL_CELL_VARS, EMPTY_CELL } from "./grid/shared";
 
 type Props = {
   segments: Segment[];
@@ -85,7 +85,11 @@ export function VerticalGrid({ segments, data, weekStart, divider }: Props) {
                     day ? (
                       <DayButton key={day} day={day} data={data} />
                     ) : (
-                      <span key={i} className="size-(--cell) shrink-0" aria-hidden />
+                      <span
+                        key={i}
+                        className={cn("size-(--cell) shrink-0", divider === "month" && EMPTY_CELL)}
+                        aria-hidden
+                      />
                     ),
                   )}
                 </div>
