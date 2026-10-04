@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { LockIcon, PencilIcon, PlusIcon } from "lucide-react";
+import { LockIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
-import { setPin, updateSettings } from "@/app/w/[slug]/actions";
+import { deleteCategory, deletePerson, setPin, updateSettings } from "@/app/w/[slug]/actions";
 import { Avatar } from "@/components/Avatar";
 import { Hint } from "@/components/Hint";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Divider } from "@/lib/grid";
@@ -22,10 +23,12 @@ type Props = {
   onClose: () => void;
   onWorkspaceChange: (w: Workspace) => void;
   onEditCategory: (c: Category | null) => void;
+  onCategoryDeleted: (id: string) => void;
   onEditPerson: (p: Person | null) => void;
+  onPersonDeleted: (id: string) => void;
 };
 
-export function SettingsDialog({
+export function SettingsSheet({
   open,
   workspace,
   categories,
@@ -33,12 +36,21 @@ export function SettingsDialog({
   onClose,
   onWorkspaceChange,
   onEditCategory,
+  onCategoryDeleted,
   onEditPerson,
+  onPersonDeleted,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(workspace.name);
   const [pinDraft, setPinDraft] = useState("");
   const [editingPin, setEditingPin] = useState(false);
+  const [deleting, setDeleting] = useState<Category | null>(null);
+  // Kept after closing so the dialog text doesn't blank while it fades out.
+  const [lastDeleting, setLastDeleting] = useState<Category | null>(null);
+  if (deleting && deleting !== lastDeleting) setLastDeleting(deleting);
+  const [removing, setRemoving] = useState<Person | null>(null);
+  const [lastRemoving, setLastRemoving] = useState<Person | null>(null);
+  if (removing && removing !== lastRemoving) setLastRemoving(removing);
 
   function save(patch: { name?: string; divider?: Divider; weekStart?: 0 | 1 }) {
     // Apply immediately; roll back if the server refuses.
@@ -71,13 +83,37 @@ export function SettingsDialog({
     });
   }
 
+  function removeCategory() {
+    if (!deleting) return;
+    const category = deleting;
+    startTransition(async () => {
+      const res = await deleteCategory(workspace.slug, category.id);
+      if (!res.ok) return void toast.error(res.error);
+      setDeleting(null);
+      onCategoryDeleted(category.id);
+    });
+  }
+
+  function removePerson() {
+    if (!removing) return;
+    const person = removing;
+    startTransition(async () => {
+      const res = await deletePerson(workspace.slug, person.id);
+      if (!res.ok) return void toast.error(res.error);
+      setRemoving(null);
+      onPersonDeleted(person.id);
+    });
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>Changes apply for everyone with the link.</DialogDescription>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent className="data-[side=right]:w-full overflow-y-auto min-[480px]:max-w-md!">
+        <SheetHeader className="pr-12">
+          <SheetTitle className="text-lg tracking-tight">Settings</SheetTitle>
+          <SheetDescription>Changes apply for everyone with the link.</SheetDescription>
+        </SheetHeader>
+
+        <div className="flex flex-col gap-4 px-4 pb-6">
 
         <section className="space-y-1.5">
           <Label htmlFor="ws-name">Name</Label>
@@ -133,6 +169,11 @@ export function SettingsDialog({
                     <PencilIcon />
                   </Button>
                 </Hint>
+                <Hint label={`Delete ${c.name}`} side="left">
+                  <Button variant="ghost" size="icon-xs" aria-label={`Delete ${c.name}`} onClick={() => setDeleting(c)}>
+                    <Trash2Icon />
+                  </Button>
+                </Hint>
               </li>
             ))}
           </ul>
@@ -158,6 +199,11 @@ export function SettingsDialog({
                   <Hint label={`Edit ${p.name}`} side="left">
                     <Button variant="ghost" size="icon-xs" aria-label={`Edit ${p.name}`} onClick={() => onEditPerson(p)}>
                       <PencilIcon />
+                    </Button>
+                  </Hint>
+                  <Hint label={`Remove ${p.name}`} side="left">
+                    <Button variant="ghost" size="icon-xs" aria-label={`Remove ${p.name}`} onClick={() => setRemoving(p)}>
+                      <Trash2Icon />
                     </Button>
                   </Hint>
                 </li>
@@ -208,8 +254,43 @@ export function SettingsDialog({
             </div>
           )}
         </section>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </SheetContent>
+
+      <Dialog open={deleting !== null} onOpenChange={(o) => !o && !pending && setDeleting(null)}>
+        <DialogContent className="sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Delete “{lastDeleting?.name}”?</DialogTitle>
+            <DialogDescription>This also deletes every entry logged under it. This can’t be undone.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleting(null)} disabled={pending}>
+              Keep it
+            </Button>
+            <Button variant="destructive" onClick={removeCategory} disabled={pending}>
+              {pending ? "Deleting…" : "Delete category"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={removing !== null} onOpenChange={(o) => !o && !pending && setRemoving(null)}>
+        <DialogContent className="sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Remove {lastRemoving?.name}?</DialogTitle>
+            <DialogDescription>Their entries stay on the grid, but will no longer show who logged them.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRemoving(null)} disabled={pending}>
+              Keep them
+            </Button>
+            <Button variant="destructive" onClick={removePerson} disabled={pending}>
+              {pending ? "Removing…" : "Remove person"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Sheet>
   );
 }
 
