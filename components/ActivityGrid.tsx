@@ -14,10 +14,12 @@ type Props = {
   data: GridData;
   weekStart: 0 | 1;
   divider: Divider;
+  /** Name all seven weekdays beside the rows; false leaves the labels off. */
+  weekdayLabels: boolean;
 };
 
 /** Horizontal view: each week is a column, oldest on the left; scrolls sideways. */
-export function ActivityGrid({ segments, data, weekStart, divider }: Props) {
+export function ActivityGrid({ segments, data, weekStart, divider, weekdayLabels }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const { hover, hide, handlers } = useDayHover();
   const [edges, setEdges] = useState({ back: false, forward: false });
@@ -72,20 +74,21 @@ export function ActivityGrid({ segments, data, weekStart, divider }: Props) {
 
   return (
     <div className={cn("relative flex", CELL_VARS)}>
-      {/* Weekday labels */}
-      <div
-        className={cn(
-          "flex shrink-0 flex-col gap-(--gap) pr-2 pb-3 text-[11px] text-muted-foreground",
-          showSegmentLabels ? "pt-10" : "pt-5",
-        )}
-        aria-hidden
-      >
-        {rowDays.map((d) => (
-          <div key={d} className="flex h-(--cell) items-center">
-            {d % 2 === 1 ? weekdayLabel(d) : ""}
-          </div>
-        ))}
-      </div>
+      {weekdayLabels && (
+        <div
+          className={cn(
+            "flex shrink-0 flex-col gap-(--gap) pr-2 pb-3 text-[11px] text-muted-foreground",
+            showSegmentLabels ? "pt-10" : "pt-5",
+          )}
+          aria-hidden
+        >
+          {rowDays.map((d) => (
+            <div key={d} className="flex h-(--cell) items-center">
+              {weekdayLabel(d)}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div
         ref={scroller}

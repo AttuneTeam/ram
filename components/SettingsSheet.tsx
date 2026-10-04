@@ -57,7 +57,7 @@ export function SettingsSheet({
   const [lastRemoving, setLastRemoving] = useState<Person | null>(null);
   if (removing && removing !== lastRemoving) setLastRemoving(removing);
 
-  function save(patch: { name?: string; divider?: Divider; weekStart?: 0 | 1 }) {
+  function save(patch: { name?: string; divider?: Divider; weekStart?: 0 | 1; weekdayLabels?: boolean }) {
     // Apply immediately; roll back if the server refuses.
     const previous = workspace;
     onWorkspaceChange({
@@ -66,6 +66,7 @@ export function SettingsSheet({
       settings: {
         divider: patch.divider ?? workspace.settings.divider,
         weekStart: patch.weekStart ?? workspace.settings.weekStart,
+        weekdayLabels: patch.weekdayLabels ?? workspace.settings.weekdayLabels,
       },
     });
     startTransition(async () => {
@@ -153,6 +154,18 @@ export function SettingsSheet({
               { value: 0, label: "Sunday" },
             ]}
             onChange={(weekStart) => save({ weekStart })}
+          />
+        </section>
+
+        <section className="space-y-1.5">
+          <Label>Weekday labels</Label>
+          <Segmented
+            value={workspace.settings.weekdayLabels}
+            options={[
+              { value: true, label: "Show" },
+              { value: false, label: "Hide" },
+            ]}
+            onChange={(weekdayLabels) => save({ weekdayLabels })}
           />
         </section>
 
@@ -313,7 +326,7 @@ export function SettingsSheet({
   );
 }
 
-function Segmented<T extends string | number>({
+function Segmented<T extends string | number | boolean>({
   value,
   options,
   onChange,

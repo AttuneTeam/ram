@@ -114,7 +114,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
 
   const cells = useMemo(() => shadeDays(visibleEntries, categories, filter), [visibleEntries, categories, filter]);
 
-  const { divider, weekStart } = workspace.settings;
+  const { divider, weekStart, weekdayLabels } = workspace.settings;
   const segments = useMemo(() => {
     if (!today) return [];
     // Span everyone's history, so switching person doesn't change the grid's width.
@@ -517,7 +517,13 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
 
       <section className="mt-4 rounded-2xl bg-popover p-4 sm:p-6 dark:bg-card">
         {gridData ? (
-          <ActivityGrid segments={segments} data={gridData} weekStart={weekStart} divider={divider} />
+          <ActivityGrid
+            segments={segments}
+            data={gridData}
+            weekStart={weekStart}
+            divider={divider}
+            weekdayLabels={weekdayLabels}
+          />
         ) : (
           <div className="h-[321px] sm:h-[196px] lg:h-[224px]" />
         )}

@@ -14,7 +14,7 @@ create table workspaces (
   -- Brute-force protection for 4-digit PINs.
   failed_pin_attempts int not null default 0,
   pin_locked_until    timestamptz,
-  -- { divider: 'none' | 'month' | 'year', weekStart: 0 | 1 }
+  -- { divider: 'none' | 'month' | 'year', weekStart: 0 | 1, weekdayLabels: boolean }
   settings            jsonb not null default '{}'::jsonb,
   created_at          timestamptz not null default now()
 );

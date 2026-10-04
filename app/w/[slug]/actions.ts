@@ -143,7 +143,7 @@ export async function setPin(slug: string, pin: string | null): Promise<Result<W
 
 export async function updateSettings(
   slug: string,
-  input: { name?: string; divider?: string; weekStart?: number },
+  input: { name?: string; divider?: string; weekStart?: number; weekdayLabels?: boolean },
 ): Promise<Result<Workspace>> {
   return run(async () => {
     const row = await requireWorkspace(slug);

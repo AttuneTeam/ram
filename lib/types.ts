@@ -5,9 +5,11 @@ export type WorkspaceSettings = {
   divider: Divider;
   /** 0 = weeks start Sunday, 1 = Monday */
   weekStart: 0 | 1;
+  /** Name every weekday beside the horizontal grid; off hides the labels. */
+  weekdayLabels: boolean;
 };
 
-export const DEFAULT_SETTINGS: WorkspaceSettings = { divider: "none", weekStart: 1 };
+export const DEFAULT_SETTINGS: WorkspaceSettings = { divider: "none", weekStart: 1, weekdayLabels: true };
 
 /**
  * What the client is allowed to see about a workspace. Never includes the PIN
