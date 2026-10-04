@@ -125,6 +125,7 @@
 
   /* ── Activity grid ────────────────────────────────────────────────── */
   --cell-empty: #e4e1d8;
+  --header-h: 3.5rem;
   --cell-future: transparent;
 }
 

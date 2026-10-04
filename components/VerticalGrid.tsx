@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import { addDays, weekdayLabel } from "@/lib/dates";
 import { newestFirst, verticalMonthLabels, type Divider, type Segment } from "@/lib/grid";
 import { cn } from "@/lib/utils";
-import { CELL_VARS, DayButton, DayTooltip, useDayHover, type GridData } from "./grid/shared";
+import { DayButton, DayTooltip, useDayHover, type GridData, VERTICAL_CELL_VARS, EMPTY_CELL } from "./grid/shared";
 
 type Props = {
   segments: Segment[];
@@ -43,7 +43,7 @@ export function VerticalGrid({ segments, data, weekStart, divider }: Props) {
   const showSegmentLabels = divider !== "none";
 
   return (
-    <div ref={root} className={cn("relative", CELL_VARS)}>
+    <div ref={root} className={cn("relative", VERTICAL_CELL_VARS)}>
       {/* Weekday header, pinned while scrolling */}
       <div
         className="sticky top-0 z-10 -mx-1 flex items-end gap-3 bg-popover px-1 pt-3 pb-2 dark:bg-card"
@@ -85,7 +85,11 @@ export function VerticalGrid({ segments, data, weekStart, divider }: Props) {
                     day ? (
                       <DayButton key={day} day={day} data={data} />
                     ) : (
-                      <span key={i} className="size-(--cell) shrink-0" aria-hidden />
+                      <span
+                        key={i}
+                        className={cn("size-(--cell) shrink-0", divider === "month" && EMPTY_CELL)}
+                        aria-hidden
+                      />
                     ),
                   )}
                 </div>

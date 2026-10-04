@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { CheckIcon } from "lucide-react";
 import { toast } from "sonner";
-import { createCategory, deleteCategory, updateCategory } from "@/app/w/[slug]/actions";
+import { createCategory, updateCategory } from "@/app/w/[slug]/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,6 @@ type Props = {
   usedColors: string[];
   onClose: () => void;
   onSaved: (category: Category) => void;
-  onDeleted: (id: string) => void;
 };
 
 export function CategoryDialog(props: Props) {
@@ -41,14 +40,12 @@ function CategoryForm({
   usedColors,
   onClose,
   onSaved,
-  onDeleted,
 }: Props & { category: Category | null }) {
   const [name, setName] = useState(category?.name ?? "");
   const [unit, setUnit] = useState(category?.unit ?? "");
   const [color, setColor] = useState(
     category?.color ?? SWATCHES.find((s) => !usedColors.includes(s)) ?? SWATCHES[0],
   );
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function submit(e: React.FormEvent) {
@@ -58,16 +55,6 @@ function CategoryForm({
       const res = category ? await updateCategory(slug, category.id, input) : await createCategory(slug, input);
       if (!res.ok) return void toast.error(res.error);
       onSaved(res.data);
-      onClose();
-    });
-  }
-
-  function remove() {
-    if (!category) return;
-    startTransition(async () => {
-      const res = await deleteCategory(slug, category.id);
-      if (!res.ok) return void toast.error(res.error);
-      onDeleted(category.id);
       onClose();
     });
   }
@@ -149,20 +136,7 @@ function CategoryForm({
         </div>
       </div>
 
-      <DialogFooter className="items-center sm:justify-between">
-        {category ? (
-          confirmDelete ? (
-            <Button type="button" variant="destructive" onClick={remove} disabled={pending}>
-              Delete it and its entries
-            </Button>
-          ) : (
-            <Button type="button" variant="ghost" onClick={() => setConfirmDelete(true)} disabled={pending}>
-              Delete
-            </Button>
-          )
-        ) : (
-          <span />
-        )}
+      <DialogFooter>
         <Button type="submit" disabled={pending || !name.trim()}>
           {category ? "Save" : "Create"}
         </Button>

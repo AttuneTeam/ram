@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { createPerson, deletePerson, updatePerson } from "@/app/w/[slug]/actions";
+import { createPerson, updatePerson } from "@/app/w/[slug]/actions";
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,7 +16,6 @@ type Props = {
   person: Person | null | undefined;
   onClose: () => void;
   onSaved: (person: Person) => void;
-  onDeleted: (id: string) => void;
 };
 
 export function PersonDialog(props: Props) {
@@ -31,9 +30,8 @@ export function PersonDialog(props: Props) {
   );
 }
 
-function PersonForm({ slug, person, onClose, onSaved, onDeleted }: Props & { person: Person | null }) {
+function PersonForm({ slug, person, onClose, onSaved }: Props & { person: Person | null }) {
   const [name, setName] = useState(person?.name ?? "");
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function submit(e: React.FormEvent) {
@@ -42,16 +40,6 @@ function PersonForm({ slug, person, onClose, onSaved, onDeleted }: Props & { per
       const res = person ? await updatePerson(slug, person.id, { name }) : await createPerson(slug, { name });
       if (!res.ok) return void toast.error(res.error);
       onSaved(res.data);
-      onClose();
-    });
-  }
-
-  function remove() {
-    if (!person) return;
-    startTransition(async () => {
-      const res = await deletePerson(slug, person.id);
-      if (!res.ok) return void toast.error(res.error);
-      onDeleted(person.id);
       onClose();
     });
   }
@@ -81,20 +69,7 @@ function PersonForm({ slug, person, onClose, onSaved, onDeleted }: Props & { per
         </div>
       </div>
 
-      <DialogFooter className="items-center sm:justify-between">
-        {person ? (
-          confirmDelete ? (
-            <Button type="button" variant="destructive" onClick={remove} disabled={pending}>
-              Remove (keeps their entries)
-            </Button>
-          ) : (
-            <Button type="button" variant="ghost" onClick={() => setConfirmDelete(true)} disabled={pending}>
-              Remove
-            </Button>
-          )
-        ) : (
-          <span />
-        )}
+      <DialogFooter>
         <Button type="submit" disabled={pending || !name.trim()}>
           {person ? "Save" : "Add"}
         </Button>

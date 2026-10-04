@@ -39,7 +39,7 @@ export function StatsSheet({ open, onClose, categories, entries, today, weekStar
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-md!">
+      <SheetContent className="data-[side=right]:w-full overflow-y-auto min-[480px]:max-w-md!">
         <SheetHeader>
           <SheetTitle className="text-lg tracking-tight">Snapshot</SheetTitle>
           <SheetDescription>What you did, and the days you didn’t.</SheetDescription>

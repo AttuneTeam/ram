@@ -21,13 +21,14 @@ export default async function ViewPage({ params }: Props) {
   const row = await findWorkspaceByViewToken(token);
   if (!row) notFound();
 
-  const { categories, people, entries } = await loadWorkspaceData(row.id);
+  const { categories, people, entries, links } = await loadWorkspaceData(row.id);
   return (
     <WorkspaceApp
       workspace={toReadOnlyWorkspace(row)}
       categories={categories}
       people={people}
       entries={entries}
+      links={links}
       readOnly
     />
   );

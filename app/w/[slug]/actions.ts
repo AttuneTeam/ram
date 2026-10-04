@@ -18,21 +18,33 @@ import {
   AccessError,
   CATEGORY_COLUMNS,
   ENTRY_COLUMNS,
+  LINK_COLUMNS,
   PERSON_COLUMNS,
   cookieSecret,
   findWorkspaceRow,
   requireWorkspace,
   toCategory,
   toEntry,
+  toLink,
   toPerson,
   toWorkspace,
   type CategoryRow,
   type EntryRow,
+  type LinkRow,
   type PersonRow,
   type WorkspaceRow,
 } from "@/lib/workspace";
+import { normalizeUrl } from "@/lib/links";
+import { fetchLinkMeta } from "@/lib/linkPreview";
 import { categoryInput, entryInput, personInput, settingsInput } from "@/lib/validation";
-import { DEFAULT_SETTINGS, type Category, type Entry, type Person, type Workspace } from "@/lib/types";
+import {
+  DEFAULT_SETTINGS,
+  type Category,
+  type Entry,
+  type Link,
+  type Person,
+  type Workspace,
+} from "@/lib/types";
 
 /**
  * Actions return errors as values: Next.js masks thrown errors in production,
@@ -132,7 +144,14 @@ export async function setPin(slug: string, pin: string | null): Promise<Result<W
 
 export async function updateSettings(
   slug: string,
-  input: { name?: string; divider?: string; weekStart?: number; startDate?: string },
+  input: {
+    name?: string;
+    divider?: string;
+    weekStart?: number;
+    startDate?: string;
+    weekdayLabels?: boolean;
+    dayNumbers?: boolean;
+  },
 ): Promise<Result<Workspace>> {
   return run(async () => {
     const row = await requireWorkspace(slug);
@@ -278,6 +297,59 @@ export async function deleteCategory(slug: string, id: string): Promise<Result<n
   });
 }
 
+// ── Links ──────────────────────────────────────────────────────────────────
+
+/**
+ * The workspace's link for this URL, creating it (and fetching its preview)
+ * the first time it's seen. The server does the fetching, never the browser,
+ * behind the checks in lib/linkPreview.ts.
+ */
+async function ensureLink(workspaceId: string, input: string): Promise<LinkRow> {
+  const url = normalizeUrl(input);
+  if (!url) throw new UserError("That doesn’t look like a web link");
+  const sql = db();
+  const [existing] = await sql<LinkRow[]>`
+    select ${sql(LINK_COLUMNS)} from links where workspace_id = ${workspaceId} and url = ${url}`;
+  // A preview that failed last time gets another go.
+  if (existing?.title) return existing;
+
+  if (!existing) {
+    const [{ count }] = await sql<{ count: number }[]>`
+      select count(*)::int as count from links where workspace_id = ${workspaceId}`;
+    if (count >= 5000) throw new UserError("Your library is full — 5,000 links is the limit");
+  }
+  const meta = await fetchLinkMeta(url);
+  // Two tabs can save the same new link at once; the unique key makes that one row.
+  const [link] = await sql<LinkRow[]>`
+    insert into links (workspace_id, url, kind, title, description, image_url, site_name)
+    values (${workspaceId}, ${url}, ${meta.kind}, ${meta.title}, ${meta.description}, ${meta.imageUrl}, ${meta.siteName})
+    on conflict (workspace_id, url) do update set
+      kind = excluded.kind,
+      title = coalesce(excluded.title, links.title),
+      description = coalesce(excluded.description, links.description),
+      image_url = coalesce(excluded.image_url, links.image_url),
+      site_name = coalesce(excluded.site_name, links.site_name)
+    returning ${sql(LINK_COLUMNS)}`;
+  return link;
+}
+
+/** Preview a link while it's being typed into the day dialog. */
+export async function previewLink(slug: string, url: string): Promise<Result<Link>> {
+  return run(async () => {
+    const row = await requireWorkspace(slug);
+    return toLink(await ensureLink(row.id, url));
+  });
+}
+
+/** Removes a link from the library. Its entries stay, just without the link. */
+export async function deleteLink(slug: string, id: string): Promise<Result<null>> {
+  return run(async () => {
+    const row = await requireWorkspace(slug);
+    await db()`delete from links where id = ${checkId(id)}::uuid and workspace_id = ${row.id}`;
+    return null;
+  });
+}
+
 // ── Entries ────────────────────────────────────────────────────────────────
 
 type EntryFields = {
@@ -286,6 +358,7 @@ type EntryFields = {
   day: string;
   description?: string;
   quantity?: number | null;
+  url?: string | null;
 };
 
 /** Entries before the board's start date would be archived on arrival, so refuse them. */
@@ -294,41 +367,46 @@ function checkAfterStart(row: WorkspaceRow, day: string) {
   if (startDate && day < startDate) throw new UserError("That day is before the board's start date");
 }
 
+/** An entry plus its link, so the client can show the preview straight away. */
+export type SavedEntry = { entry: Entry; link: Link | null };
+
 function rethrowEntry(err: unknown): never {
-  // Composite FKs: the category or person was deleted, or belongs to another workspace.
+  // Composite FKs: the category, person or link was deleted, or belongs to another workspace.
   if (pgCode(err) === FOREIGN_KEY_VIOLATION) throw new UserError("That category or person no longer exists");
   throw err;
 }
 
-export async function createEntry(slug: string, input: EntryFields): Promise<Result<Entry>> {
+export async function createEntry(slug: string, input: EntryFields): Promise<Result<SavedEntry>> {
   return run(async () => {
     const row = await requireWorkspace(slug);
     const v = parse(entryInput, input);
     checkAfterStart(row, v.day);
+    const link = v.url ? await ensureLink(row.id, v.url) : null;
     const sql = db();
-    // The composite FK rejects a category from another workspace.
+    // The composite FKs reject a category, person or link from another workspace.
     const [created] = await sql<EntryRow[]>`
-      insert into entries (workspace_id, category_id, person_id, day, description, quantity)
-      values (${row.id}, ${v.categoryId}, ${v.personId}, ${v.day}, ${v.description}, ${v.quantity})
+      insert into entries (workspace_id, category_id, person_id, link_id, day, description, quantity)
+      values (${row.id}, ${v.categoryId}, ${v.personId}, ${link?.id ?? null}, ${v.day}, ${v.description}, ${v.quantity})
       returning ${sql(ENTRY_COLUMNS)}`.catch(rethrowEntry);
-    return toEntry(created);
+    return { entry: toEntry(created), link: link && toLink(link) };
   });
 }
 
-export async function updateEntry(slug: string, id: string, input: EntryFields): Promise<Result<Entry>> {
+export async function updateEntry(slug: string, id: string, input: EntryFields): Promise<Result<SavedEntry>> {
   return run(async () => {
     const row = await requireWorkspace(slug);
     const v = parse(entryInput, input);
     checkAfterStart(row, v.day);
+    const link = v.url ? await ensureLink(row.id, v.url) : null;
     const sql = db();
     const [updated] = await sql<EntryRow[]>`
       update entries set
-        category_id = ${v.categoryId}, person_id = ${v.personId}, day = ${v.day},
-        description = ${v.description}, quantity = ${v.quantity}
+        category_id = ${v.categoryId}, person_id = ${v.personId}, link_id = ${link?.id ?? null},
+        day = ${v.day}, description = ${v.description}, quantity = ${v.quantity}
       where id = ${checkId(id)}::uuid and workspace_id = ${row.id}
       returning ${sql(ENTRY_COLUMNS)}`.catch(rethrowEntry);
     if (!updated) throw new UserError("That entry no longer exists");
-    return toEntry(updated);
+    return { entry: toEntry(updated), link: link && toLink(link) };
   });
 }
 

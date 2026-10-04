@@ -6,7 +6,9 @@ each category has a colour, and the shade shows how much.
 
 There are no accounts. A **workspace** lives at `/w/<slug>` and is shared by sharing the link,
 optionally locked with a 4-digit PIN. A separate **view-only link** (`/v/<token>`) shows it without
-any way to edit. Workspaces can list **people** by name; entries record who logged them.
+any way to edit. Workspaces can list **people** by name; entries record who logged them. An entry
+can carry a **link** (a YouTube workout, an article) with a preview; the links you've logged form
+the workspace's **library**.
 
 ---
 
@@ -31,6 +33,8 @@ Mirrors Attune: Next.js 16 (App Router, Turbopack), React 19, Tailwind CSS v4, s
 | The view link is its own 20-char secret (`view_token`). It bypasses the PIN (which guards editing), can be reset or turned off, and **never reveals the edit slug**: the view page gets `toReadOnlyWorkspace()`, with `slug` and `viewToken` blanked. Every action needs the edit slug, so the view page can't mutate anything. | `app/v/[token]/page.tsx`, `lib/workspace.ts` |
 | People are names, not accounts: anyone with the edit link can log as anyone. "Me" is a per-device default (`localStorage`), not an identity. | `lib/me.ts` |
 | An entry's person must belong to the same workspace (composite FK). Removing a person nulls only `person_id`, so their entries stay. | `db/migrations/002_people_and_view_links.sql` |
+| Same for an entry's link. Removing a link from the library nulls only `link_id`. | `db/migrations/003_links.sql` |
+| **Link previews are fetched by the server** from URLs anyone with the edit link can type, so the fetch is locked to the public web: http(s) on ports 80/443 only, and every resolved address (checked inside the socket's DNS lookup, so no rebinding) must be public: no loopback, private, link-local/metadata, CGNAT or NAT64 ranges. Redirects are re-checked hop by hop (max 4), with a 5 s timeout and only the first 512 KB read. YouTube goes through its oEmbed endpoint instead. The browser never fetches previews itself; it only loads the https thumbnail, with `no-referrer`. | `lib/linkPreview.ts` |
 
 Server actions return `{ ok, data } | { ok: false, error }` rather than throwing, because
 Next.js masks thrown errors in production and the UI needs the message.
@@ -52,9 +56,11 @@ components/
   ActivityGrid.tsx          Horizontal view: weeks as columns, scrolls sideways, opens on today
   VerticalGrid.tsx          Vertical view: weeks as rows, newest on top
   grid/shared.tsx           What both views share: day button, delegated tooltip, cell sizes
-  DayDialog.tsx             Log / edit / delete entries for a day
+  DaySheet.tsx              Log / edit / delete entries for a day, with an optional link + preview
+  LibrarySheet.tsx          Side drawer: every logged link, search, "Log again"
+  LinkCard.tsx              A link's preview (thumbnail, title, site)
   CategoryDialog.tsx        Create / edit / delete a category (name, colour, unit)
-  SettingsDialog.tsx        Name, dividers, week start, categories, PIN
+  SettingsSheet.tsx         Name, dividers, week start, categories, PIN
   StatsSheet.tsx            Side drawer: streaks, done vs missed, monthly chart, table
   PinGate.tsx               4-digit PIN entry
   ShareDialog.tsx           Edit link + view-only link (create / reset / turn off)
@@ -68,6 +74,8 @@ lib/
   stats.ts                  Streaks, missed days, monthly buckets
   startDate.ts              Board start date: default, which entries are archived
   security.ts               Slugs, PIN hashing, access tokens
+  links.ts                  URL normalising (one row per video), <meta> parsing, library grouping
+  linkPreview.ts            Server-only: SSRF-safe preview fetch, YouTube oEmbed
   db.ts                     Server-only Postgres client (pooler-safe, dates kept as strings)
   workspace.ts              Server-only: load workspace, access check, row mappers
 
@@ -110,6 +118,16 @@ boards default to a year back; boards from before the setting have `null` and sh
   entry can't be archived on arrival.
 - The first week can start mid-week; `DayButton` leaves those earlier days blank.
 - "Missed" days still count from a category's first entry within the board, not from the start date.
+## Links and the library
+
+- A link is stored once per workspace under its **normalised** URL (`normalizeUrl`): every
+  YouTube form (`youtu.be`, `shorts/`, `m.`, `?si=`) becomes one `watch?v=` URL, and tracking
+  params and fragments are dropped. So "the same video" is the same library item.
+- `previewLink` runs while typing and already saves the link row. The page only loads links
+  that some entry uses, so abandoned previews never show in the library.
+- A failed preview still saves (it shows the host name). The next preview of that URL retries.
+- The library is derived on the client (`buildLibrary`) from entries + links, so it follows the
+  person filter like everything else.
 
 ## Two orientations
 

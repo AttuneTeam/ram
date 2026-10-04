@@ -11,9 +11,19 @@ export type WorkspaceSettings = {
    * which show all their history.
    */
   startDate: IsoDay | null;
+  /** Name every weekday beside the horizontal grid; off hides the labels. */
+  weekdayLabels: boolean;
+  /** Print the day of the month in each cell's corner. */
+  dayNumbers: boolean;
 };
 
-export const DEFAULT_SETTINGS: WorkspaceSettings = { divider: "none", weekStart: 1, startDate: null };
+export const DEFAULT_SETTINGS: WorkspaceSettings = {
+  divider: "none",
+  weekStart: 1,
+  startDate: null,
+  weekdayLabels: true,
+  dayNumbers: false,
+};
 
 /**
  * What the client is allowed to see about a workspace. Never includes the PIN
@@ -52,5 +62,18 @@ export type Entry = {
   quantity: number | null;
   /** Who logged it; null when not attributed. */
   personId: string | null;
+  /** The video or page it was done to, if any. */
+  linkId: string | null;
   createdAt: string;
+};
+
+/** A web link attached to entries, with a preview. Together they're the library. */
+export type Link = {
+  id: string;
+  url: string;
+  kind: "video" | "page";
+  title: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  siteName: string | null;
 };
