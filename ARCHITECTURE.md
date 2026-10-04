@@ -72,6 +72,7 @@ lib/
   grid.ts                   Weeks → columns → segments (month/year dividers)
   intensity.ts              Entries → shade level 0–4 per day
   stats.ts                  Streaks, missed days, monthly buckets
+  startDate.ts              Board start date: default, which entries are archived
   security.ts               Slugs, PIN hashing, access tokens
   links.ts                  URL normalising (one row per video), <meta> parsing, library grouping
   linkPreview.ts            Server-only: SSRF-safe preview fetch, YouTube oEmbed
@@ -104,6 +105,19 @@ db/migrations/              Plain SQL, applied in order by scripts/migrate.mjs
 - Colour is `color-mix()` of the category colour into `--cell-empty`, so it works in both themes.
   Several bands use a hard-stop `linear-gradient`.
 
+## Board start date
+
+`settings.startDate` (in the settings JSON, so no column) is the first day on the board. New
+boards default to a year back; boards from before the setting have `null` and show all history.
+
+- Entries before it are **archived**, not deleted: they stay in the database and are filtered
+  out in `WorkspaceApp` (`activeEntries`), so the grid, tooltips and stats all start at the date.
+  Moving the date earlier brings them back.
+- Settings warns, with a count, before a change that would newly hide entries.
+- `createEntry` / `updateEntry` refuse a day before the start date (`checkAfterStart`), so a new
+  entry can't be archived on arrival.
+- The first week can start mid-week; `DayButton` leaves those earlier days blank.
+- "Missed" days still count from a category's first entry within the board, not from the start date.
 ## Links and the library
 
 - A link is stored once per workspace under its **normalised** URL (`normalizeUrl`): every

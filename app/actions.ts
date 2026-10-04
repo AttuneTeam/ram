@@ -8,6 +8,8 @@ import { cookieSecret } from "@/lib/workspace";
 import { workspaceInput } from "@/lib/validation";
 import { DEFAULT_SETTINGS } from "@/lib/types";
 import { STARTER_CATEGORIES } from "@/lib/palette";
+import { formatDay } from "@/lib/dates";
+import { defaultStartDate } from "@/lib/startDate";
 
 export type CreateState = { error?: string };
 
@@ -15,8 +17,13 @@ export async function createWorkspace(_prev: CreateState, formData: FormData): P
   const parsed = workspaceInput.safeParse({
     name: formData.get("name"),
     pin: formData.get("pin") ?? "",
+    startDate: formData.get("startDate") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  // The form fills in a year back using the viewer's clock; fall back to the server's.
+  const startDate = parsed.data.startDate || defaultStartDate(formatDay(new Date()));
+  const settings = { ...DEFAULT_SETTINGS, startDate };
 
   const pinHash = parsed.data.pin ? hashPin(parsed.data.pin) : null;
   const sql = db();
@@ -29,7 +36,7 @@ export async function createWorkspace(_prev: CreateState, formData: FormData): P
       await sql.begin(async (tx) => {
         const [{ id }] = await tx<{ id: string }[]>`
           insert into workspaces (slug, name, pin_hash, settings)
-          values (${candidate}, ${parsed.data.name}, ${pinHash}, ${tx.json(DEFAULT_SETTINGS)})
+          values (${candidate}, ${parsed.data.name}, ${pinHash}, ${tx.json(settings)})
           returning id`;
         const starters = STARTER_CATEGORIES.map((c, i) => ({ ...c, workspace_id: id, sort_order: i }));
         await tx`insert into categories ${tx(starters, "workspace_id", "name", "color", "unit", "sort_order")}`;

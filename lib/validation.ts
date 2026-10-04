@@ -3,6 +3,14 @@ import { isValidDay } from "./dates";
 
 export const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Pick a colour");
 
+/** Earliest start date allowed; keeps the grid a sane size. */
+export const MIN_START_DATE = "2000-01-01";
+
+export const startDateInput = z
+  .string()
+  .refine(isValidDay, "Invalid date")
+  .refine((v) => v >= MIN_START_DATE, "Start date can't be before 2000");
+
 export const workspaceInput = z.object({
   name: z.string().trim().min(1, "Give it a name").max(80),
   pin: z
@@ -10,6 +18,7 @@ export const workspaceInput = z.object({
     .trim()
     .refine((v) => v === "" || /^\d{4}$/.test(v), "PIN must be 4 digits")
     .optional(),
+  startDate: z.union([z.literal(""), startDateInput]).optional(),
 });
 
 export const categoryInput = z.object({
@@ -58,6 +67,7 @@ export const settingsInput = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   divider: z.enum(["none", "month", "year"]).optional(),
   weekStart: z.union([z.literal(0), z.literal(1)]).optional(),
+  startDate: startDateInput.optional(),
   weekdayLabels: z.boolean().optional(),
   dayNumbers: z.boolean().optional(),
 });

@@ -16,6 +16,8 @@ export type GridData = {
   /** Only entries in this category are listed, when set. */
   categoryId: string | null;
   today: IsoDay;
+  /** Days before this aren't on the board; the first week can start mid-week. */
+  startDate: IsoDay | null;
   readOnly: boolean;
   /** Print the day of the month in each cell. */
   dayNumbers: boolean;
@@ -92,6 +94,8 @@ export function useDayHover() {
 }
 
 export function DayButton({ day, data }: { day: IsoDay; data: GridData }) {
+  // Part of the first week, but before the board begins: keep the slot, not the cell.
+  if (data.startDate && day < data.startDate) return <span aria-hidden className="size-(--cell) shrink-0" />;
   const n = scopedEntries(data.entriesByDay.get(day), data.categoryId).length;
   // The number sits over the first (leftmost) band, so contrast follows that one.
   const level = data.cells.get(day)?.bands[0]?.level ?? 0;

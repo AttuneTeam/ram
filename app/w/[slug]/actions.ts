@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import type { z } from "zod";
+import { formatDay } from "@/lib/dates";
 import { db, FOREIGN_KEY_VIOLATION, pgCode, UNIQUE_VIOLATION } from "@/lib/db";
 import {
   LOCK_MINUTES,
@@ -143,11 +144,21 @@ export async function setPin(slug: string, pin: string | null): Promise<Result<W
 
 export async function updateSettings(
   slug: string,
-  input: { name?: string; divider?: string; weekStart?: number; weekdayLabels?: boolean; dayNumbers?: boolean },
+  input: {
+    name?: string;
+    divider?: string;
+    weekStart?: number;
+    startDate?: string;
+    weekdayLabels?: boolean;
+    dayNumbers?: boolean;
+  },
 ): Promise<Result<Workspace>> {
   return run(async () => {
     const row = await requireWorkspace(slug);
     const { name, ...settings } = parse(settingsInput, input);
+    if (settings.startDate && settings.startDate > formatDay(new Date(Date.now() + 86_400_000))) {
+      throw new UserError("Start date can't be in the future");
+    }
     const sql = db();
     const merged = { ...DEFAULT_SETTINGS, ...(row.settings ?? {}), ...settings };
     const [updated] = await sql<WorkspaceRow[]>`
@@ -350,6 +361,12 @@ type EntryFields = {
   url?: string | null;
 };
 
+/** Entries before the board's start date would be archived on arrival, so refuse them. */
+function checkAfterStart(row: WorkspaceRow, day: string) {
+  const { startDate } = { ...DEFAULT_SETTINGS, ...(row.settings ?? {}) };
+  if (startDate && day < startDate) throw new UserError("That day is before the board's start date");
+}
+
 /** An entry plus its link, so the client can show the preview straight away. */
 export type SavedEntry = { entry: Entry; link: Link | null };
 
@@ -363,6 +380,7 @@ export async function createEntry(slug: string, input: EntryFields): Promise<Res
   return run(async () => {
     const row = await requireWorkspace(slug);
     const v = parse(entryInput, input);
+    checkAfterStart(row, v.day);
     const link = v.url ? await ensureLink(row.id, v.url) : null;
     const sql = db();
     // The composite FKs reject a category, person or link from another workspace.
@@ -378,6 +396,7 @@ export async function updateEntry(slug: string, id: string, input: EntryFields):
   return run(async () => {
     const row = await requireWorkspace(slug);
     const v = parse(entryInput, input);
+    checkAfterStart(row, v.day);
     const link = v.url ? await ensureLink(row.id, v.url) : null;
     const sql = db();
     const [updated] = await sql<EntryRow[]>`

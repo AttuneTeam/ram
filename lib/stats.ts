@@ -75,12 +75,16 @@ export function streaks(days: IsoDay[], today: IsoDay) {
   return { currentStreak: current, longestStreak: longest };
 }
 
-/** Active vs missed days per month for the last `months` months, oldest first. */
+/**
+ * Active vs missed days per month for the last `months` months, oldest first.
+ * Months before the board's start date (`boardStart`) are left out.
+ */
 export function monthlyActivity(
   categoryId: string,
   entries: Entry[],
   today: IsoDay,
   months = 12,
+  boardStart: IsoDay | null = null,
 ): MonthBucket[] {
   const active = new Map<string, Set<IsoDay>>();
   for (const e of entries) {
@@ -104,6 +108,7 @@ export function monthlyActivity(
     const tracked = from > monthEnd ? 0 : diffDays(from, monthEnd) + 1;
     const n = active.get(key)?.size ?? 0;
     buckets.unshift({ month: key, active: n, missed: Math.max(0, tracked - n) });
+    if (boardStart && monthStart <= boardStart) break;
     m -= 1;
     if (m === 0) {
       m = 12;

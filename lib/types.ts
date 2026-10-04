@@ -5,13 +5,25 @@ export type WorkspaceSettings = {
   divider: Divider;
   /** 0 = weeks start Sunday, 1 = Monday */
   weekStart: 0 | 1;
+  /**
+   * First day on the board. Entries before it are archived: kept in the database,
+   * hidden from the grid and stats. Null on boards from before this setting existed,
+   * which show all their history.
+   */
+  startDate: IsoDay | null;
   /** Name every weekday beside the horizontal grid; off hides the labels. */
   weekdayLabels: boolean;
   /** Print the day of the month in each cell's corner. */
   dayNumbers: boolean;
 };
 
-export const DEFAULT_SETTINGS: WorkspaceSettings = { divider: "none", weekStart: 1, weekdayLabels: true, dayNumbers: false };
+export const DEFAULT_SETTINGS: WorkspaceSettings = {
+  divider: "none",
+  weekStart: 1,
+  startDate: null,
+  weekdayLabels: true,
+  dayNumbers: false,
+};
 
 /**
  * What the client is allowed to see about a workspace. Never includes the PIN
