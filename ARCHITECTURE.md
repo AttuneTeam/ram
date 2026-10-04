@@ -56,11 +56,11 @@ components/
   ActivityGrid.tsx          Horizontal view: weeks as columns, scrolls sideways, opens on today
   VerticalGrid.tsx          Vertical view: weeks as rows, newest on top
   grid/shared.tsx           What both views share: day button, delegated tooltip, cell sizes
-  DayDialog.tsx             Log / edit / delete entries for a day, with an optional link + preview
+  DaySheet.tsx              Log / edit / delete entries for a day, with an optional link + preview
   LibrarySheet.tsx          Side drawer: every logged link, search, "Log again"
   LinkCard.tsx              A link's preview (thumbnail, title, site)
   CategoryDialog.tsx        Create / edit / delete a category (name, colour, unit)
-  SettingsDialog.tsx        Name, dividers, week start, categories, PIN
+  SettingsSheet.tsx         Name, dividers, week start, categories, PIN
   StatsSheet.tsx            Side drawer: streaks, done vs missed, monthly chart, table
   PinGate.tsx               4-digit PIN entry
   ShareDialog.tsx           Edit link + view-only link (create / reset / turn off)

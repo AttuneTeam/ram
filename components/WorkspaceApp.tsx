@@ -20,11 +20,11 @@ import type { GridData } from "@/components/grid/shared";
 import { Avatar } from "@/components/Avatar";
 import { CategoryDialog } from "@/components/CategoryDialog";
 import type { SavedEntry } from "@/app/w/[slug]/actions";
-import { DayDialog, type DayPrefill } from "@/components/DayDialog";
+import { DaySheet, type DayPrefill } from "@/components/DaySheet";
 import { Hint } from "@/components/Hint";
 import { LibrarySheet } from "@/components/LibrarySheet";
 import { PersonDialog } from "@/components/PersonDialog";
-import { SettingsDialog } from "@/components/SettingsDialog";
+import { SettingsSheet } from "@/components/SettingsSheet";
 import { ShareDialog } from "@/components/ShareDialog";
 import { StatsSheet } from "@/components/StatsSheet";
 import { VerticalGrid } from "@/components/VerticalGrid";
@@ -337,7 +337,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
 
   const dialogs = (
     <>
-      <DayDialog
+      <DaySheet
         slug={workspace.slug}
         day={openDay}
         entries={openDay ? (entriesByDay.get(openDay) ?? []) : []}
@@ -392,16 +392,14 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
             usedColors={categories.map((c) => c.color)}
             onClose={() => setEditingCategory(undefined)}
             onSaved={upsertCategory}
-            onDeleted={removeCategory}
           />
           <PersonDialog
             slug={workspace.slug}
             person={editingPerson}
             onClose={() => setEditingPerson(undefined)}
             onSaved={upsertPerson}
-            onDeleted={removePerson}
           />
-          <SettingsDialog
+          <SettingsSheet
             open={settingsOpen}
             workspace={workspace}
             categories={categories}
@@ -411,7 +409,9 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
             onClose={() => setSettingsOpen(false)}
             onWorkspaceChange={setWorkspace}
             onEditCategory={setEditingCategory}
+            onCategoryDeleted={removeCategory}
             onEditPerson={setEditingPerson}
+            onPersonDeleted={removePerson}
           />
           <ShareDialog
             open={shareOpen}
