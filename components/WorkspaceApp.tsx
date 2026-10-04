@@ -483,7 +483,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
         {gridData ? (
           <ActivityGrid segments={segments} data={gridData} weekStart={weekStart} divider={divider} />
         ) : (
-          <div className="h-[168px] sm:h-[196px] lg:h-[224px]" />
+          <div className="h-[321px] sm:h-[196px] lg:h-[224px]" />
         )}
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
