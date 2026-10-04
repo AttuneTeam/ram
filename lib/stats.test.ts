@@ -57,6 +57,11 @@ describe("monthlyActivity", () => {
     expect(months[2]).toEqual({ month: "2026-09", active: 2, missed: 8 }); // up to today
   });
 
+  it("stops at the month the board starts", () => {
+    const months = monthlyActivity("ex", [entry("2026-08-12")], "2026-09-10", 12, "2026-08-05");
+    expect(months.map((m) => m.month)).toEqual(["2026-08", "2026-09"]);
+  });
+
   it("wraps across the year boundary", () => {
     const months = monthlyActivity("ex", [], "2026-02-15", 3);
     expect(months.map((m) => m.month)).toEqual(["2025-12", "2026-01", "2026-02"]);

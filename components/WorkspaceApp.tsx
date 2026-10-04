@@ -32,6 +32,7 @@ import { buildGrid, gridStart } from "@/lib/grid";
 import { cellBackground, shade, shadeDays } from "@/lib/intensity";
 import type { IsoDay } from "@/lib/dates";
 import { useMe } from "@/lib/me";
+import { activeEntries } from "@/lib/startDate";
 import { useOrientation } from "@/lib/orientation";
 import type { Category, Entry, Person, Workspace } from "@/lib/types";
 import { useToday } from "@/lib/useToday";
@@ -85,10 +86,15 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
   const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const peopleById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
 
+  const { divider, weekStart, startDate } = workspace.settings;
+
+  // Entries before the start date stay stored but are archived: off the board and out of stats.
+  const boardEntries = useMemo(() => activeEntries(entries, startDate), [entries, startDate]);
+
   // Picking a person narrows everything below — grid, tooltips, stats — to their entries.
   const visibleEntries = useMemo(
-    () => (personFilter ? entries.filter((e) => e.personId === personFilter) : entries),
-    [entries, personFilter],
+    () => (personFilter ? boardEntries.filter((e) => e.personId === personFilter) : boardEntries),
+    [boardEntries, personFilter],
   );
 
   const entriesByDay = useMemo(() => {
@@ -103,13 +109,12 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
 
   const cells = useMemo(() => shadeDays(visibleEntries, categories, filter), [visibleEntries, categories, filter]);
 
-  const { divider, weekStart } = workspace.settings;
   const segments = useMemo(() => {
     if (!today) return [];
     // Span everyone's history, so switching person doesn't change the grid's width.
-    const earliest = entries[0]?.day ?? null; // entries arrive sorted by day
-    return buildGrid({ from: gridStart(today, earliest), to: today, weekStart, divider });
-  }, [today, entries, weekStart, divider]);
+    const earliest = boardEntries[0]?.day ?? null; // entries arrive sorted by day
+    return buildGrid({ from: gridStart(today, earliest, startDate), to: today, weekStart, divider });
+  }, [today, boardEntries, startDate, weekStart, divider]);
 
   const loggedDays = useMemo(() => {
     if (!today || segments.length === 0) return 0;
@@ -163,7 +168,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
   if (filterPerson) summary += ` by ${filterPerson.name.split(/\s+/)[0]}`;
 
   const gridData: GridData | null = today
-    ? { cells, entriesByDay, categoriesById, peopleById, categoryId: filter, today, readOnly, onSelectDay: setOpenDay }
+    ? { cells, entriesByDay, categoriesById, peopleById, categoryId: filter, today, startDate, readOnly, onSelectDay: setOpenDay }
     : null;
 
   // ── Pieces shared by both layouts ────────────────────────────────────────
@@ -334,6 +339,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
           entries={visibleEntries}
           today={today}
           weekStart={weekStart}
+          startDate={startDate}
           initialCategoryId={filter}
         />
       )}
@@ -359,6 +365,7 @@ export function WorkspaceApp({ readOnly = false, isNew = false, ...props }: Prop
             workspace={workspace}
             categories={categories}
             people={people}
+            entries={entries}
             onClose={() => setSettingsOpen(false)}
             onWorkspaceChange={setWorkspace}
             onEditCategory={setEditingCategory}

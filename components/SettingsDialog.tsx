@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { LockIcon, PencilIcon, PlusIcon } from "lucide-react";
+import { ArchiveIcon, LockIcon, PencilIcon, PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { setPin, updateSettings } from "@/app/w/[slug]/actions";
 import { Avatar } from "@/components/Avatar";
@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Divider } from "@/lib/grid";
-import type { Category, Person, Workspace } from "@/lib/types";
+import { longDayLabel, type IsoDay } from "@/lib/dates";
+import { archivedCount, newlyArchivedCount } from "@/lib/startDate";
+import type { Category, Entry, Person, Workspace } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -19,6 +21,8 @@ type Props = {
   workspace: Workspace;
   categories: Category[];
   people: Person[];
+  /** Every entry, archived or not: the warning needs to know what a new date would hide. */
+  entries: Entry[];
   onClose: () => void;
   onWorkspaceChange: (w: Workspace) => void;
   onEditCategory: (c: Category | null) => void;
@@ -30,6 +34,7 @@ export function SettingsDialog({
   workspace,
   categories,
   people,
+  entries,
   onClose,
   onWorkspaceChange,
   onEditCategory,
@@ -40,7 +45,13 @@ export function SettingsDialog({
   const [pinDraft, setPinDraft] = useState("");
   const [editingPin, setEditingPin] = useState(false);
 
-  function save(patch: { name?: string; divider?: Divider; weekStart?: 0 | 1 }) {
+  const { startDate } = workspace.settings;
+  const [startDraft, setStartDraft] = useState<IsoDay | "">(startDate ?? "");
+  const startChanged = startDraft !== "" && startDraft !== startDate;
+  const hiding = startChanged ? newlyArchivedCount(entries, startDate, startDraft) : 0;
+  const archived = archivedCount(entries, startDate);
+
+  function save(patch: { name?: string; divider?: Divider; weekStart?: 0 | 1; startDate?: IsoDay }) {
     // Apply immediately; roll back if the server refuses.
     const previous = workspace;
     onWorkspaceChange({
@@ -49,12 +60,14 @@ export function SettingsDialog({
       settings: {
         divider: patch.divider ?? workspace.settings.divider,
         weekStart: patch.weekStart ?? workspace.settings.weekStart,
+        startDate: patch.startDate ?? workspace.settings.startDate,
       },
     });
     startTransition(async () => {
       const res = await updateSettings(workspace.slug, patch);
       if (!res.ok) {
         onWorkspaceChange(previous);
+        if (patch.startDate) setStartDraft(previous.settings.startDate ?? "");
         toast.error(res.error);
       }
     });
@@ -88,6 +101,52 @@ export function SettingsDialog({
             onChange={(e) => setName(e.target.value)}
             onBlur={() => name.trim() && name.trim() !== workspace.name && save({ name: name.trim() })}
           />
+        </section>
+
+        <section className="space-y-2">
+          <Label htmlFor="ws-start">Board starts on</Label>
+          <div className="flex flex-wrap gap-2">
+            <Input
+              id="ws-start"
+              type="date"
+              min="2000-01-01"
+              value={startDraft}
+              className="w-40"
+              onChange={(e) => setStartDraft(e.target.value)}
+            />
+            {startChanged && hiding === 0 && (
+              <Button variant="secondary" disabled={pending} onClick={() => save({ startDate: startDraft })}>
+                Apply
+              </Button>
+            )}
+          </div>
+          {startChanged && hiding > 0 && (
+            <div role="alert" className="space-y-2 rounded-lg bg-well p-3 text-sm">
+              <p className="flex items-start gap-2">
+                <ArchiveIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                <span>
+                  {hiding} {hiding === 1 ? "entry" : "entries"} before {longDayLabel(startDraft)} will no longer be
+                  visible on the board or in stats. They stay saved as archived, and come back if you move the date
+                  earlier.
+                </span>
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" disabled={pending} onClick={() => save({ startDate: startDraft })}>
+                  Archive {hiding}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setStartDraft(startDate ?? "")}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {startDate
+              ? archived > 0
+                ? `${archived} archived ${archived === 1 ? "entry is" : "entries are"} hidden, not deleted.`
+                : "The grid and stats count from this day."
+              : "No start date yet: the board shows all history. Pick one to count from a set day."}
+          </p>
         </section>
 
         <section className="space-y-1.5">

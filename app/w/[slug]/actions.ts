@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import type { z } from "zod";
+import { formatDay } from "@/lib/dates";
 import { db, FOREIGN_KEY_VIOLATION, pgCode, UNIQUE_VIOLATION } from "@/lib/db";
 import {
   LOCK_MINUTES,
@@ -131,11 +132,14 @@ export async function setPin(slug: string, pin: string | null): Promise<Result<W
 
 export async function updateSettings(
   slug: string,
-  input: { name?: string; divider?: string; weekStart?: number },
+  input: { name?: string; divider?: string; weekStart?: number; startDate?: string },
 ): Promise<Result<Workspace>> {
   return run(async () => {
     const row = await requireWorkspace(slug);
     const { name, ...settings } = parse(settingsInput, input);
+    if (settings.startDate && settings.startDate > formatDay(new Date(Date.now() + 86_400_000))) {
+      throw new UserError("Start date can't be in the future");
+    }
     const sql = db();
     const merged = { ...DEFAULT_SETTINGS, ...(row.settings ?? {}), ...settings };
     const [updated] = await sql<WorkspaceRow[]>`
@@ -284,6 +288,12 @@ type EntryFields = {
   quantity?: number | null;
 };
 
+/** Entries before the board's start date would be archived on arrival, so refuse them. */
+function checkAfterStart(row: WorkspaceRow, day: string) {
+  const { startDate } = { ...DEFAULT_SETTINGS, ...(row.settings ?? {}) };
+  if (startDate && day < startDate) throw new UserError("That day is before the board's start date");
+}
+
 function rethrowEntry(err: unknown): never {
   // Composite FKs: the category or person was deleted, or belongs to another workspace.
   if (pgCode(err) === FOREIGN_KEY_VIOLATION) throw new UserError("That category or person no longer exists");
@@ -294,6 +304,7 @@ export async function createEntry(slug: string, input: EntryFields): Promise<Res
   return run(async () => {
     const row = await requireWorkspace(slug);
     const v = parse(entryInput, input);
+    checkAfterStart(row, v.day);
     const sql = db();
     // The composite FK rejects a category from another workspace.
     const [created] = await sql<EntryRow[]>`
@@ -308,6 +319,7 @@ export async function updateEntry(slug: string, id: string, input: EntryFields):
   return run(async () => {
     const row = await requireWorkspace(slug);
     const v = parse(entryInput, input);
+    checkAfterStart(row, v.day);
     const sql = db();
     const [updated] = await sql<EntryRow[]>`
       update entries set

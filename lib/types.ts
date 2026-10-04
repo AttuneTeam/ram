@@ -5,9 +5,15 @@ export type WorkspaceSettings = {
   divider: Divider;
   /** 0 = weeks start Sunday, 1 = Monday */
   weekStart: 0 | 1;
+  /**
+   * First day on the board. Entries before it are archived: kept in the database,
+   * hidden from the grid and stats. Null on boards from before this setting existed,
+   * which show all their history.
+   */
+  startDate: IsoDay | null;
 };
 
-export const DEFAULT_SETTINGS: WorkspaceSettings = { divider: "none", weekStart: 1 };
+export const DEFAULT_SETTINGS: WorkspaceSettings = { divider: "none", weekStart: 1, startDate: null };
 
 /**
  * What the client is allowed to see about a workspace. Never includes the PIN

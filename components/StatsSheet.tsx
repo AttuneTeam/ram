@@ -15,12 +15,14 @@ type Props = {
   entries: Entry[];
   today: IsoDay;
   weekStart: 0 | 1;
+  /** Board start date; months before it are left out of the chart. */
+  startDate: IsoDay | null;
   initialCategoryId: string | null;
 };
 
 const fmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
 
-export function StatsSheet({ open, onClose, categories, entries, today, weekStart, initialCategoryId }: Props) {
+export function StatsSheet({ open, onClose, categories, entries, today, weekStart, startDate, initialCategoryId }: Props) {
   const [picked, setPicked] = useState<string | null>(null);
   const categoryId = picked ?? initialCategoryId ?? categories[0]?.id ?? null;
   const category = categories.find((c) => c.id === categoryId) ?? null;
@@ -31,8 +33,8 @@ export function StatsSheet({ open, onClose, categories, entries, today, weekStar
   );
   const stats = all.find((s) => s.category.id === categoryId) ?? null;
   const months = useMemo(
-    () => (categoryId ? monthlyActivity(categoryId, entries, today) : []),
-    [categoryId, entries, today],
+    () => (categoryId ? monthlyActivity(categoryId, entries, today, 12, startDate) : []),
+    [categoryId, entries, today, startDate],
   );
 
   return (
@@ -154,7 +156,7 @@ function MonthChart({ months, color }: { months: MonthBucket[]; color: string })
   return (
     <section>
       <div className="mb-2 flex items-baseline justify-between">
-        <h3 className="text-sm font-medium">Last 12 months</h3>
+        <h3 className="text-sm font-medium">{months.length < 12 ? "Since the board began" : "Last 12 months"}</h3>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <span className="size-2.5 rounded-[3px]" style={{ background: color }} /> Done

@@ -31,8 +31,13 @@ export type GridOptions = {
 /** Minimum history shown so a new workspace still looks like a year. */
 export const MIN_WEEKS = 53;
 
-/** The first visible day: the earlier of `earliest` and ~a year before `today`. */
-export function gridStart(today: IsoDay, earliest: IsoDay | null): IsoDay {
+/**
+ * The first visible day. With a board start date, exactly that. Without one
+ * (boards from before the setting existed): the earlier of `earliest` and
+ * ~a year before `today`.
+ */
+export function gridStart(today: IsoDay, earliest: IsoDay | null, startDate: IsoDay | null = null): IsoDay {
+  if (startDate) return startDate;
   const yearAgo = addDays(today, -(MIN_WEEKS * 7 - 1));
   return earliest && earliest < yearAgo ? earliest : yearAgo;
 }
