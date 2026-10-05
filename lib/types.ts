@@ -60,6 +60,8 @@ export type Entry = {
   day: IsoDay;
   description: string;
   quantity: number | null;
+  /** Longer free-form context; empty when none. */
+  notes: string;
   /** Who logged it; null when not attributed. */
   personId: string | null;
   /** The video or page it was done to, if any. */

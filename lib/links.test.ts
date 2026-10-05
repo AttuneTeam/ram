@@ -98,6 +98,7 @@ describe("buildLibrary", () => {
   const entry = (id: string, day: string, linkId: string | null): Entry => ({
     id,
     categoryId: "c",
+    notes: "",
     day,
     description: "",
     quantity: null,

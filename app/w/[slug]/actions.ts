@@ -359,6 +359,7 @@ type EntryFields = {
   description?: string;
   quantity?: number | null;
   url?: string | null;
+  notes?: string;
 };
 
 /** Entries before the board's start date would be archived on arrival, so refuse them. */
@@ -385,8 +386,8 @@ export async function createEntry(slug: string, input: EntryFields): Promise<Res
     const sql = db();
     // The composite FKs reject a category, person or link from another workspace.
     const [created] = await sql<EntryRow[]>`
-      insert into entries (workspace_id, category_id, person_id, link_id, day, description, quantity)
-      values (${row.id}, ${v.categoryId}, ${v.personId}, ${link?.id ?? null}, ${v.day}, ${v.description}, ${v.quantity})
+      insert into entries (workspace_id, category_id, person_id, link_id, day, description, quantity, notes)
+      values (${row.id}, ${v.categoryId}, ${v.personId}, ${link?.id ?? null}, ${v.day}, ${v.description}, ${v.quantity}, ${v.notes})
       returning ${sql(ENTRY_COLUMNS)}`.catch(rethrowEntry);
     return { entry: toEntry(created), link: link && toLink(link) };
   });
@@ -402,7 +403,7 @@ export async function updateEntry(slug: string, id: string, input: EntryFields):
     const [updated] = await sql<EntryRow[]>`
       update entries set
         category_id = ${v.categoryId}, person_id = ${v.personId}, link_id = ${link?.id ?? null},
-        day = ${v.day}, description = ${v.description}, quantity = ${v.quantity}
+        day = ${v.day}, description = ${v.description}, quantity = ${v.quantity}, notes = ${v.notes}
       where id = ${checkId(id)}::uuid and workspace_id = ${row.id}
       returning ${sql(ENTRY_COLUMNS)}`.catch(rethrowEntry);
     if (!updated) throw new UserError("That entry no longer exists");

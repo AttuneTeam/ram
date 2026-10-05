@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar } from "@/components/Avatar";
 import { Hint } from "@/components/Hint";
@@ -123,6 +124,7 @@ function DayBody({
   );
   const [description, setDescription] = useState(prefill?.description ?? "");
   const [quantity, setQuantity] = useState("");
+  const [notes, setNotes] = useState("");
   const linkField = useLinkField(slug, linksById, prefill?.link ?? null);
   const [pending, startTransition] = useTransition();
   const descriptionRef = useRef<HTMLInputElement>(null);
@@ -144,7 +146,7 @@ function DayBody({
       toast.error("Amount must be a positive number");
       return;
     }
-    const input = { categoryId, personId, day, description, quantity: q, url: linkField.url };
+    const input = { categoryId, personId, day, description, quantity: q, notes, url: linkField.url };
     startTransition(async () => {
       const res = await createEntry(slug, input);
       if (!res.ok) return void toast.error(res.error);
@@ -262,6 +264,8 @@ function DayBody({
             setQuantity={setQuantity}
             description={description}
             setDescription={setDescription}
+            notes={notes}
+            setNotes={setNotes}
             descriptionRef={descriptionRef}
             autoFocus
             link={linkField}
@@ -330,6 +334,8 @@ type FieldsProps = {
   setQuantity: (v: string) => void;
   description: string;
   setDescription: (v: string) => void;
+  notes: string;
+  setNotes: (v: string) => void;
   descriptionRef?: React.Ref<HTMLInputElement>;
   autoFocus?: boolean;
   link: LinkField;
@@ -347,6 +353,8 @@ function EntryFields({
   setQuantity,
   description,
   setDescription,
+  notes,
+  setNotes,
   descriptionRef,
   autoFocus,
   link,
@@ -460,6 +468,18 @@ function EntryFields({
           <p className="text-xs text-muted-foreground">That doesn’t look like a web link.</p>
         )}
       </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${id}-notes`}>Notes</Label>
+        <Textarea
+          id={`${id}-notes`}
+          placeholder="Context notes"
+          maxLength={2000}
+          rows={5}
+          className="min-h-28"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+      </div>
     </>
   );
 }
@@ -489,6 +509,7 @@ function EditPanel({
   const [categoryId, setCategoryId] = useState<string | null>(entry.categoryId);
   const [description, setDescription] = useState(entry.description);
   const [quantity, setQuantity] = useState(entry.quantity?.toString() ?? "");
+  const [notes, setNotes] = useState(entry.notes);
   const linkField = useLinkField(slug, linksById, entry.linkId ? (linksById.get(entry.linkId) ?? null) : null);
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -502,7 +523,7 @@ function EditPanel({
       return;
     }
     startTransition(async () => {
-      const res = await updateEntry(slug, entry.id, { categoryId, personId, day, description, quantity: q, url: linkField.url });
+      const res = await updateEntry(slug, entry.id, { categoryId, personId, day, description, quantity: q, notes, url: linkField.url });
       if (!res.ok) return void toast.error(res.error);
       linkField.stop();
       onSaved(res.data);
@@ -544,6 +565,8 @@ function EditPanel({
           setQuantity={setQuantity}
           description={description}
           setDescription={setDescription}
+          notes={notes}
+          setNotes={setNotes}
           link={linkField}
         />
         <div className="flex justify-end gap-2 pt-1">
