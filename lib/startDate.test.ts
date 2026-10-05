@@ -2,7 +2,7 @@ import { activeEntries, archivedCount, defaultStartDate, newlyArchivedCount } fr
 import type { Entry } from "./types";
 
 function entry(day: string): Entry {
-  return { id: day, categoryId: "c", day, description: "", quantity: null, personId: null, linkId: null, createdAt: day };
+  return { id: day, categoryId: "c", day, description: "", notes: "", quantity: null, personId: null, linkId: null, createdAt: day };
 }
 
 const entries = ["2026-01-05", "2026-03-10", "2026-06-01"].map(entry);

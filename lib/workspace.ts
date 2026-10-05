@@ -46,6 +46,7 @@ export type EntryRow = {
   day: string;
   description: string;
   quantity: string | null;
+  notes: string;
   created_at: Date;
 };
 
@@ -69,6 +70,7 @@ export const ENTRY_COLUMNS = [
   "day",
   "description",
   "quantity",
+  "notes",
   "created_at",
 ] as const;
 export const LINK_COLUMNS = ["id", "url", "kind", "title", "description", "image_url", "site_name"] as const;
@@ -124,6 +126,7 @@ export function toEntry(row: EntryRow): Entry {
     description: row.description,
     // Postgres numeric arrives as a string to avoid precision loss.
     quantity: row.quantity === null ? null : Number(row.quantity),
+    notes: row.notes,
     createdAt: row.created_at.toISOString(),
   };
 }

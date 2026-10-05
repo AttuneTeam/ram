@@ -54,6 +54,7 @@ export const entryInput = z.object({
     .transform((v) => v || null),
   day: z.string().refine(isValidDay, "Invalid date"),
   description: z.string().trim().max(280).default(""),
+  notes: z.string().trim().max(2000).default(""),
   quantity: z
     .number()
     .nonnegative()
